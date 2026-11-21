@@ -273,14 +273,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         ${isCo ? `<dt>Contact person</dt><dd>${e(u.name)}</dd>` : ""}
         <dt>Email</dt><dd>${e(u.email)}</dd>
         <dt>Phone</dt><dd>${e(u.phone || "-")}</dd>
+        ${isCo ? "" : `<dt>Creative CV client</dt><dd>${u.creativeCv ? "Yes" : "No"}</dd>
+        <dt>Fields of work</dt><dd>${e((u.fields || []).join(", ") || "-")}</dd>`}
         <dt>Registered</dt><dd>${fmt(u.created)}</dd>
         <dt>Last login</dt><dd>${fmt(u.lastLogin)}</dd>
       </dl>
       ${isCo ? "" : `
-        <h4>CV</h4>
+        <h4>Documents</h4>
         ${u.cvPath
-          ? `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><strong>${e(u.cvName || "CV")}</strong><span class="muted small">Uploaded ${fmt(u.cvUpdated)}</span><button class="btn btn-primary btn-sm" id="open-cv">Open CV</button></div>`
+          ? `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><strong>CV: ${e(u.cvName || "CV")}</strong><span class="muted small">${fmt(u.cvUpdated)}</span><button class="btn btn-primary btn-sm" id="open-cv">Open CV</button></div>`
           : `<p class="muted small">No CV uploaded yet.</p>`}
+        ${u.coverPath
+          ? `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><strong>Cover letter: ${e(u.coverName || "Cover letter")}</strong><span class="muted small">${fmt(u.coverUpdated)}</span><button class="btn btn-outline-dark btn-sm" id="open-cover">Open cover letter</button></div>`
+          : `<p class="muted small">No cover letter uploaded yet.</p>`}
         <h4>Applications (${apps.length})</h4>
         ${apps.length ? `<ul class="timeline" style="margin-bottom:8px">${apps.map(a => `<li><strong>${e(a.title)}</strong> &middot; ${e(a.location)} &middot; ${fmt(a.date)} <span class="badge warn">${e(a.status)}</span>
           ${a.coverLetter ? `<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--gold-dark);font-weight:600">Cover letter</summary><div class="cover-letter">${e(a.coverLetter)}</div></details>` : `<span class="muted small"> &middot; no cover letter</span>`}</li>`).join("")}</ul>` : `<p class="muted small">No applications yet.</p>`}`}
@@ -316,6 +321,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     on("#open-cv", async ev => {
       ev.target.disabled = true;
       try { window.open(await Auth.cvUrl(u.cvPath), "_blank", "noopener"); } catch (err) { fail(err); }
+      finally { ev.target.disabled = false; }
+    });
+    on("#open-cover", async ev => {
+      ev.target.disabled = true;
+      try { window.open(await Auth.cvUrl(u.coverPath), "_blank", "noopener"); } catch (err) { fail(err); }
       finally { ev.target.disabled = false; }
     });
     on("#send-reset", async ev => {

@@ -27,7 +27,8 @@
     id: p.id, name: p.name, email: p.email, phone: p.phone, role: p.role, company: p.company,
     status: p.status, approval: p.approval, notes: p.notes, created: p.created_at, lastLogin: p.last_login,
     cvPath: p.cv_path || "", cvName: p.cv_name || "", cvUpdated: p.cv_updated || "",
-    fields: p.fields || [], jobAlerts: p.job_alerts !== false
+    coverPath: p.cover_path || "", coverName: p.cover_name || "", coverUpdated: p.cover_updated || "",
+    fields: p.fields || [], jobAlerts: p.job_alerts !== false, creativeCv: !!p.creative_cv
   });
 
   /* ----- Email login code ----------------------------------------------------------------
@@ -56,6 +57,46 @@
   });
 
   const cleanFields = list => (Array.isArray(list) ? list : []).filter(f => (window.TC_FIELDS || []).includes(f)).slice(0, 20);
+  const DOC_TYPES = {
+    "application/pdf": "pdf", "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx"
+  };
+  const checkDoc = (file, label) => {
+    if (!file) throw new Error("Please upload your " + label + " (PDF, DOC or DOCX).");
+    if (!DOC_TYPES[file.type]) throw new Error("Your " + label + " must be a PDF, DOC or DOCX file.");
+    if (file.size > 5242880) throw new Error("Your " + label + " is too large. Please use a file under 5 MB.");
+    return DOC_TYPES[file.type];
+  };
+
+  /* Hold CV + cover letter across email confirmation / login-code, then upload once the person is signed in. */
+  const PENDING_DB = "tc_pending_docs", PENDING_STORE = "docs";
+  const openPending = () => new Promise((resolve, reject) => {
+    const req = indexedDB.open(PENDING_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(PENDING_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  const stashPendingDocs = async (email, cvFile, coverFile) => {
+    const db = await openPending();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(PENDING_STORE, "readwrite");
+      tx.objectStore(PENDING_STORE).put({ email, cvFile, coverFile, at: Date.now() }, email);
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  };
+  const takePendingDocs = async email => {
+    const db = await openPending();
+    const row = await new Promise((resolve, reject) => {
+      const tx = db.transaction(PENDING_STORE, "readwrite");
+      const store = tx.objectStore(PENDING_STORE);
+      const g = store.get(email);
+      g.onsuccess = () => { if (g.result) store.delete(email); resolve(g.result || null); };
+      g.onerror = () => reject(g.error);
+    });
+    db.close();
+    return row;
+  };
 
   let user = null;
 
@@ -77,8 +118,41 @@
       }
       user = mapProfile(p);
       localStorage.setItem(HINT, JSON.stringify({ name: user.name, role: user.role }));
+      // Finish a registration that collected CV / cover letter before email confirm or login code.
+      if (user.role === "candidate") await flushPendingDocs().catch(() => {});
     } catch {
       user = null;
+    }
+  }
+
+  async function putDocument(file, kind) {
+    const ext = checkDoc(file, kind === "cv" ? "CV" : "cover letter");
+    const path = user.id + "/" + kind + "-" + Date.now() + "." + ext;
+    const { error } = await sb.storage.from("candidate-documents").upload(path, file, { contentType: file.type });
+    if (error) fail(error, "Could not upload your " + (kind === "cv" ? "CV" : "cover letter") + ". Please try again.");
+    return { path, name: file.name.slice(0, 200) };
+  }
+
+  async function flushPendingDocs() {
+    if (!user || user.role !== "candidate") return;
+    const pending = await takePendingDocs(user.email).catch(() => null);
+    if (!pending) return;
+    let cv = null, cover = null;
+    try {
+      if (pending.cvFile && !user.cvPath) cv = await putDocument(pending.cvFile, "cv");
+      if (pending.coverFile && !user.coverPath) cover = await putDocument(pending.coverFile, "cover");
+      if (!cv && !cover) return;
+      const { error } = await sb.rpc("save_my_documents", {
+        p_cv_path: cv ? cv.path : null, p_cv_name: cv ? cv.name : null,
+        p_cover_path: cover ? cover.path : null, p_cover_name: cover ? cover.name : null
+      });
+      if (error) throw error;
+      if (cv) { user.cvPath = cv.path; user.cvName = cv.name; user.cvUpdated = new Date().toISOString(); }
+      if (cover) { user.coverPath = cover.path; user.coverName = cover.name; user.coverUpdated = new Date().toISOString(); }
+    } catch (e) {
+      // Put them back so the next login can retry.
+      await stashPendingDocs(user.email, pending.cvFile, pending.coverFile).catch(() => {});
+      throw e;
     }
   }
 
@@ -87,21 +161,31 @@
     hint() { try { return JSON.parse(localStorage.getItem(HINT)); } catch { return null; } },
     current() { return user; },
 
-    async register({ name, email, phone, role, company, password, fields }) {
+    async register({ name, email, phone, role, company, password, fields, creativeCv, cvFile, coverFile }) {
       email = email.trim().toLowerCase();
       role = role === "employer" ? "employer" : "candidate"; // admin can never be requested from the client
+      phone = (phone || "").trim();
+      if (!phone) throw new Error("Please enter your phone number.");
       if (role === "employer" && !(company || "").trim()) throw new Error("Please enter your company name.");
+      if (role === "candidate") {
+        if (!cleanFields(fields).length) throw new Error("Please choose at least one field of work.");
+        if (creativeCv !== true && creativeCv !== false) throw new Error("Please say whether you are a Creative CV client.");
+        checkDoc(cvFile, "CV");
+        checkDoc(coverFile, "cover letter");
+      }
       const { data, error } = await sb.auth.signUp({
         email, password,
         options: { data: {
-          name: name.trim(), phone: (phone || "").trim(), role, company: (company || "").trim(),
-          fields: role === "candidate" ? cleanFields(fields) : []
+          name: name.trim(), phone, role, company: (company || "").trim(),
+          fields: role === "candidate" ? cleanFields(fields) : [],
+          creative_cv: role === "candidate" ? !!creativeCv : false
         } }
       });
       if (error) fail(error, "Could not create your account. Please try again.");
       // With email confirmation on, an existing address returns a user with no identities.
       if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0)
         throw new Error("An account with this email already exists.");
+      if (role === "candidate") await stashPendingDocs(email, cvFile, coverFile);
       if (!data.session) return { needsConfirmation: true };
       await loadSession();
       return { needsConfirmation: false };
@@ -161,27 +245,29 @@
       }
     },
 
-    /* ----- CV (private storage; only the owner and admins can open it) ----- */
+    /* ----- CV + cover letter (private storage; only the owner and admins can open them) ----- */
     async uploadCV(file) {
       if (!user) throw new Error("Please log in first.");
-      const types = {
-        "application/pdf": "pdf", "application/msword": "doc",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx"
-      };
-      const ext = types[file.type];
-      if (!ext) throw new Error("Please choose a PDF, DOC or DOCX file.");
-      if (file.size > 5242880) throw new Error("That file is too large. Please use a CV under 5 MB.");
-      const path = user.id + "/cv-" + Date.now() + "." + ext;
-      const { error } = await sb.storage.from("candidate-documents").upload(path, file, { contentType: file.type });
-      if (error) fail(error, "Could not upload your CV. Please try again.");
-      const name = file.name.slice(0, 200);
-      const { error: e2 } = await sb.from("profiles").update({ cv_path: path, cv_name: name, cv_updated: new Date().toISOString() }).eq("id", user.id);
-      if (e2) {
+      const { path, name } = await putDocument(file, "cv");
+      const { error } = await sb.rpc("save_my_documents", { p_cv_path: path, p_cv_name: name });
+      if (error) {
         await sb.storage.from("candidate-documents").remove([path]);
-        fail(e2, "Could not save your CV. Please try again.");
+        fail(error, "Could not save your CV. Please try again.");
       }
       const old = user.cvPath;
       user.cvPath = path; user.cvName = name; user.cvUpdated = new Date().toISOString();
+      if (old && old !== path) await sb.storage.from("candidate-documents").remove([old]);
+    },
+    async uploadCover(file) {
+      if (!user) throw new Error("Please log in first.");
+      const { path, name } = await putDocument(file, "cover");
+      const { error } = await sb.rpc("save_my_documents", { p_cover_path: path, p_cover_name: name });
+      if (error) {
+        await sb.storage.from("candidate-documents").remove([path]);
+        fail(error, "Could not save your cover letter. Please try again.");
+      }
+      const old = user.coverPath;
+      user.coverPath = path; user.coverName = name; user.coverUpdated = new Date().toISOString();
       if (old && old !== path) await sb.storage.from("candidate-documents").remove([old]);
     },
     async removeCV() {
@@ -192,10 +278,10 @@
       user.cvPath = ""; user.cvName = ""; user.cvUpdated = "";
       await sb.storage.from("candidate-documents").remove([old]);
     },
-    // Short-lived private link to open a CV (owner or admin only; the database decides).
+    // Short-lived private link to open a CV or cover letter (owner or admin only; the database decides).
     async cvUrl(path) {
       const { data, error } = await sb.storage.from("candidate-documents").createSignedUrl(path, 120);
-      if (error || !data) throw new Error("Could not open that CV. It may have been removed.");
+      if (error || !data) throw new Error("Could not open that file. It may have been removed.");
       return data.signedUrl;
     },
 

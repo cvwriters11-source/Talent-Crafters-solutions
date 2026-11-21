@@ -50,16 +50,32 @@
           <div class="field"><label for="r-name">Full name</label><input id="r-name" autocomplete="name" required></div>
           <div class="row">
             <div class="field"><label for="r-email">Email</label><input id="r-email" type="email" autocomplete="email" required></div>
-            <div class="field"><label for="r-phone">Phone</label><input id="r-phone" type="tel" autocomplete="tel"></div>
+            <div class="field"><label for="r-phone">Phone number</label><input id="r-phone" type="tel" autocomplete="tel" required placeholder="e.g. 082 123 4567"></div>
           </div>
           <div class="field">
             <label for="r-role">I am a...</label>
             <select id="r-role"><option value="candidate">Job seeker</option><option value="employer">Employer / Company</option></select>
           </div>
           <div class="field" id="fields-field">
-            <label>Your field(s) of work</label>
-            <p class="hint" style="margin:0 0 8px">Tick the fields you want job alerts for. We email you only when a new job is posted in one of them.</p>
+            <label>Jobs / fields of work <span style="color:var(--danger)">*</span></label>
+            <p class="hint" style="margin:0 0 8px">Choose at least one. We email you when a new job is posted in these fields.</p>
             <div class="fields-grid" id="r-fields"></div>
+          </div>
+          <div class="field" id="creative-field">
+            <label>Are you a Creative CV client?</label>
+            <p class="hint" style="margin:0 0 8px">Creative CV is our CV-writing brand. Tell us if you already use them.</p>
+            <div class="fields-grid">
+              <label class="fchip"><input type="radio" name="r-creative" value="yes"><span>Yes, I am</span></label>
+              <label class="fchip"><input type="radio" name="r-creative" value="no"><span>No, I'm not</span></label>
+            </div>
+          </div>
+          <div class="field" id="docs-field">
+            <label>Upload your documents <span style="color:var(--danger)">*</span></label>
+            <p class="hint" style="margin:0 0 8px">PDF, DOC or DOCX, up to 5 MB each. Both are required for job seekers.</p>
+            <div class="row">
+              <div class="field"><label for="r-cv">CV</label><input id="r-cv" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required></div>
+              <div class="field"><label for="r-cover">Cover letter</label><input id="r-cover" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required></div>
+            </div>
           </div>
           <div class="field" id="company-field" hidden>
             <label for="r-company">Company name</label>
@@ -145,15 +161,23 @@
           </section>
 
           <section id="cv-card" class="card dash-card" hidden>
-            <h3>My CV</h3>
-            <p>Employers and our team review your CV when you apply. PDF, DOC or DOCX, up to 5 MB.</p>
+            <h3>My documents</h3>
+            <p>Employers and our team review these when you apply. PDF, DOC or DOCX, up to 5 MB each.</p>
             <div id="cv-msg" class="form-msg" role="alert"></div>
+            <h4 style="margin:10px 0 6px;color:var(--navy);font-size:0.95rem">CV</h4>
             <div id="cv-current" class="cv-current"></div>
             <input type="file" id="cv-file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
             <div class="cv-actions">
               <button class="btn btn-primary btn-sm" type="button" id="cv-choose">Upload CV</button>
               <button class="btn btn-outline-dark btn-sm" type="button" id="cv-view" hidden>View</button>
               <button class="btn btn-outline-dark btn-sm" type="button" id="cv-remove" hidden>Remove</button>
+            </div>
+            <h4 style="margin:18px 0 6px;color:var(--navy);font-size:0.95rem">Cover letter</h4>
+            <div id="cover-current" class="cv-current"></div>
+            <input type="file" id="cover-file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+            <div class="cv-actions">
+              <button class="btn btn-primary btn-sm" type="button" id="cover-choose">Upload cover letter</button>
+              <button class="btn btn-outline-dark btn-sm" type="button" id="cover-view" hidden>View</button>
             </div>
           </section>
 
@@ -219,8 +243,10 @@
       const pickedFields = el => [...el.querySelectorAll("input:checked")].map(i => i.value);
       fieldChecks($("r-fields"), []);
       $("r-role").addEventListener("change", () => {
-        $("company-field").hidden = $("r-role").value !== "employer";
-        $("fields-field").hidden = $("r-role").value === "employer";
+        const employer = $("r-role").value === "employer";
+        $("company-field").hidden = !employer;
+        $("fields-field").hidden = $("creative-field").hidden = $("docs-field").hidden = employer;
+        $("r-cv").required = $("r-cover").required = !employer;
       });
 
       function done() { safeNext ? location.href = safeNext : location.reload(); }
@@ -294,8 +320,19 @@
         ev.preventDefault(); hide();
         if (!$("r-name").value.trim()) return show("Please enter your full name.", "error");
         if (!/^\S+@\S+\.\S+$/.test($("r-email").value)) return show("Please enter a valid email address.", "error");
+        if (!$("r-phone").value.trim()) return show("Please enter your phone number.", "error");
         if ($("r-pass").value.length < 8) return show("Password must be at least 8 characters.", "error");
         if ($("r-pass").value !== $("r-pass2").value) return show("Passwords do not match.", "error");
+        const role = $("r-role").value;
+        let creativeCv = null;
+        if (role === "candidate") {
+          if (!pickedFields($("r-fields")).length) return show("Please choose at least one field of work.", "error");
+          const picked = document.querySelector('input[name="r-creative"]:checked');
+          if (!picked) return show("Please say whether you are a Creative CV client.", "error");
+          creativeCv = picked.value === "yes";
+          if (!$("r-cv").files[0]) return show("Please upload your CV.", "error");
+          if (!$("r-cover").files[0]) return show("Please upload your cover letter.", "error");
+        }
         // Registration is unlocked only after the visitor clicks the Google review button on the pop-up.
         if (typeof hasLeftReview === "function" && !hasLeftReview()) {
           if (typeof requireReviewPopup === "function") requireReviewPopup();
@@ -304,12 +341,19 @@
         const btn = $("register").querySelector("button[type=submit]");
         btn.disabled = true;
         try {
-          const res = await Auth.register({ name: $("r-name").value, email: $("r-email").value, phone: $("r-phone").value, role: $("r-role").value, company: $("r-company").value, password: $("r-pass").value, fields: pickedFields($("r-fields")) });
+          const res = await Auth.register({
+            name: $("r-name").value, email: $("r-email").value, phone: $("r-phone").value,
+            role, company: $("r-company").value, password: $("r-pass").value,
+            fields: pickedFields($("r-fields")), creativeCv,
+            cvFile: $("r-cv").files[0], coverFile: $("r-cover").files[0]
+          });
           if (res.needsConfirmation) {
             $("register").reset();
-            $("company-field").hidden = true; $("fields-field").hidden = false;
+            $("company-field").hidden = true;
+            $("fields-field").hidden = $("creative-field").hidden = $("docs-field").hidden = false;
+            $("r-cv").required = $("r-cover").required = true;
             fieldChecks($("r-fields"), []);
-            show("Almost done! We've sent a confirmation link to your email address. Click it, then log in with the code we email you. Our team reviews every new account before you can apply for jobs.", "success");
+            show("Almost done! We've sent a confirmation link to your email. Click it, then log in with the code we email you — your CV and cover letter will be saved automatically. Our team reviews every new account before you can apply.", "success");
             return;
           }
           done();
@@ -379,7 +423,9 @@
           ${user.company ? `<div class="dashboard-item"><span>Company</span><strong>${e(user.company)}</strong></div>` : ""}
           <div class="dashboard-item"><span>Name</span><strong>${e(user.name)}</strong></div>
           <div class="dashboard-item"><span>Email</span><strong>${e(user.email)}</strong></div>
-          <div class="dashboard-item"><span>Phone</span><strong>${e(user.phone || "-")}</strong></div>`;
+          <div class="dashboard-item"><span>Phone</span><strong>${e(user.phone || "-")}</strong></div>
+          ${user.role === "candidate" ? `<div class="dashboard-item"><span>Creative CV client</span><strong>${user.creativeCv ? "Yes" : "No"}</strong></div>
+          <div class="dashboard-item"><span>Fields of work</span><strong>${e((user.fields || []).join(", ") || "-")}</strong></div>` : ""}`;
         if (user.role === "candidate") {
           $("cv-card").hidden = false;
           const cm = $("cv-msg"), cvSay = (t, c) => { cm.textContent = t; cm.className = "form-msg show " + c; };
@@ -390,6 +436,12 @@
               : `<span>No CV uploaded yet. You need one before you can apply for vacancies.</span>`;
             $("cv-choose").textContent = has ? "Replace CV" : "Upload CV";
             $("cv-view").hidden = $("cv-remove").hidden = !has;
+            const hasCover = !!user.coverPath;
+            $("cover-current").innerHTML = hasCover
+              ? `<strong>${e(user.coverName || "Cover letter")}</strong><span>Uploaded ${new Date(user.coverUpdated).toLocaleDateString()}</span>`
+              : `<span>No cover letter uploaded yet.</span>`;
+            $("cover-choose").textContent = hasCover ? "Replace cover letter" : "Upload cover letter";
+            $("cover-view").hidden = !hasCover;
           };
           paintCV();
           $("cv-choose").addEventListener("click", () => $("cv-file").click());
@@ -409,6 +461,19 @@
             if (!confirm("Remove your CV? You will need to upload one again before applying.")) return;
             try { await Auth.removeCV(); paintCV(); cvSay("Your CV has been removed.", "success"); }
             catch (err) { cvSay(err.message, "error"); }
+          });
+          $("cover-choose").addEventListener("click", () => $("cover-file").click());
+          $("cover-file").addEventListener("change", async ev => {
+            const f = ev.target.files[0];
+            if (!f) return;
+            $("cover-choose").disabled = true;
+            cvSay("Uploading cover letter...", "success");
+            try { await Auth.uploadCover(f); paintCV(); cvSay("Your cover letter has been saved.", "success"); }
+            catch (err) { cvSay(err.message, "error"); }
+            finally { $("cover-choose").disabled = false; ev.target.value = ""; }
+          });
+          $("cover-view").addEventListener("click", async () => {
+            try { window.open(await Auth.cvUrl(user.coverPath), "_blank", "noopener"); } catch (err) { cvSay(err.message, "error"); }
           });
         }
         if (user.role === "candidate") {
