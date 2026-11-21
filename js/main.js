@@ -131,7 +131,67 @@
     });
   }
 
+  /* ---------- Welcome / review pop-up (text, link and timing are controlled by the admin) ---------- */
+  const POPUP_KEY = "tc_popup";
+  const NO_POPUP_PAGES = ["admin.html", "account.html", "unsubscribe.html"];
+
+  // Shows the pop-up. `preview` (admin) never remembers anything.
+  window.showSitePopup = function (p, { preview = false } = {}) {
+    if (document.querySelector(".tc-popup-backdrop")) return;
+    const e = escapeHTML;
+    const link = /^https:\/\/\S+$/i.test(p.link || "") ? p.link : "";
+    const wrap = document.createElement("div");
+    wrap.className = "tc-popup-backdrop";
+    wrap.innerHTML = `
+      <div class="tc-popup" role="dialog" aria-modal="true" aria-labelledby="tc-popup-title">
+        <button type="button" class="tc-popup-close" aria-label="Close">&times;</button>
+        <img class="tc-popup-logo" src="images/logo.jpg" alt="${SITE.name}">
+        <div class="tc-popup-stars" aria-hidden="true">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <h2 id="tc-popup-title">${e(p.title)}</h2>
+        <p>${e(p.message)}</p>
+        ${link ? `<a class="tc-popup-btn" href="${e(link)}" target="_blank" rel="noopener noreferrer">${e(p.buttonText)}</a>` : ""}
+        <button type="button" class="tc-popup-later">Maybe later</button>
+      </div>`;
+    document.body.appendChild(wrap);
+
+    const remember = days => {
+      if (preview) return;
+      try {
+        if (days > 0) localStorage.setItem(POPUP_KEY, JSON.stringify({ v: p.version, until: Date.now() + days * 864e5 }));
+        else sessionStorage.setItem(POPUP_KEY, String(p.version)); // 0 days = once per visit
+      } catch { /* private mode: it may show again, which is harmless */ }
+    };
+    const close = days => { remember(days); wrap.remove(); document.removeEventListener("keydown", onKey); };
+    const onKey = ev => { if (ev.key === "Escape") close(p.repeatDays); };
+    document.addEventListener("keydown", onKey);
+    wrap.addEventListener("click", ev => { if (ev.target === wrap) close(p.repeatDays); });
+    wrap.querySelector(".tc-popup-close").addEventListener("click", () => close(p.repeatDays));
+    wrap.querySelector(".tc-popup-later").addEventListener("click", () => close(p.repeatDays));
+    const btn = wrap.querySelector(".tc-popup-btn");
+    // Someone who went to leave a review is not asked again for a year (unless the admin changes the pop-up).
+    if (btn) { btn.addEventListener("click", () => setTimeout(() => close(365), 0)); btn.focus(); }
+    else wrap.querySelector(".tc-popup-later").focus();
+  };
+
+  function popupSuppressed(p) {
+    try {
+      const s = JSON.parse(localStorage.getItem(POPUP_KEY) || "null");
+      if (s && s.v === p.version && s.until > Date.now()) return true;
+      if (sessionStorage.getItem(POPUP_KEY) === String(p.version)) return true;
+    } catch { /* ignore */ }
+    return false;
+  }
+
+  function startPopup() {
+    if (NO_POPUP_PAGES.includes(page()) || !window.Popup) return;
+    Popup.get().then(p => {
+      if (!p || !p.enabled || !p.title.trim() || popupSuppressed(p)) return;
+      setTimeout(() => { if (!popupSuppressed(p)) showSitePopup(p); }, p.delay * 1000);
+    }).catch(() => { /* the pop-up is optional; never break the page */ });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
+    startPopup();
     addPasswordToggles();
     paintHeader(Auth.hint());          // instant first paint from the display hint
     renderFooter();

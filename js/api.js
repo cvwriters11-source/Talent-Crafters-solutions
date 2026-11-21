@@ -376,6 +376,28 @@
     }
   };
 
+  /* The welcome / review pop-up. Anyone can read it; only a verified admin can save changes (database rule). */
+  window.Popup = {
+    async get() {
+      const { data, error } = await sb.from("site_popup").select("*").eq("id", true).maybeSingle();
+      if (error || !data) return null;
+      return {
+        enabled: data.enabled, title: data.title, message: data.message, buttonText: data.button_text,
+        link: data.link_url, delay: data.delay_seconds, repeatDays: data.repeat_days,
+        version: data.version, updated: data.updated_at
+      };
+    },
+    async save(p) {
+      if (p.link && !/^https:\/\/\S+$/i.test(p.link)) throw new Error("The link must start with https://");
+      const { data, error } = await sb.from("site_popup").update({
+        enabled: !!p.enabled, title: p.title, message: p.message, button_text: p.buttonText,
+        link_url: p.link, delay_seconds: p.delay, repeat_days: p.repeatDays
+      }).eq("id", true).select("id");
+      if (error) fail(error, "Could not save the pop-up. Check the text lengths and the link.");
+      if (!data || !data.length) throw new Error("You are not allowed to do that.");
+    }
+  };
+
   /* Admin-only: companies with open jobs found through the Adzuna API.
      Tables are private (RLS); the search itself runs in the admin-sync-leads edge function
      so the API keys never reach the browser. */
