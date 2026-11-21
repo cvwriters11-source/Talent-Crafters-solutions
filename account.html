@@ -249,7 +249,13 @@
         $("r-cv").required = $("r-cover").required = !employer;
       });
 
-      function done() { safeNext ? location.href = safeNext : location.reload(); }
+      // After login/register: honour ?next=..., otherwise admins go straight to the admin dashboard.
+      function done() {
+        const u = Auth.current();
+        if (safeNext) location.href = safeNext;
+        else if (u && u.role === "admin") location.href = "admin.html";
+        else location.reload();
+      }
 
       $("login").addEventListener("submit", async ev => {
         ev.preventDefault(); hide();
