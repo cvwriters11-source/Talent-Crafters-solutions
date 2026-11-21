@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unsubscribe from job alerts | Talent Crafters</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main class="container">
+    <div class="auth-wrap">
+      <div class="card" style="text-align:center">
+        <h2 style="color:var(--navy);margin-bottom:8px">Job alert emails</h2>
+        <p id="intro" class="hint" style="margin-bottom:18px">Stop receiving emails when new jobs are posted in your field of work?</p>
+        <div id="msg" class="form-msg" role="alert"></div>
+        <button class="btn btn-primary" type="button" id="go">Unsubscribe me</button>
+        <p class="hint" style="margin-top:16px">You can switch alerts back on at any time from your <a href="account.html">account page</a>.</p>
+      </div>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const $ = id => document.getElementById(id);
+      const say = (t, c) => { $("msg").textContent = t; $("msg").className = "form-msg show " + c; };
+      const token = new URLSearchParams(location.search).get("t") || "";
+      const valid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token);
+      if (!valid) {
+        $("go").hidden = true; $("intro").hidden = true;
+        say("This unsubscribe link is not valid. You can switch alerts off from your account page instead.", "error");
+        return;
+      }
+      // A button (not an automatic request) so email scanners that open links can't unsubscribe anyone by accident.
+      $("go").addEventListener("click", async () => {
+        $("go").disabled = true;
+        try {
+          const ok = await Auth.unsubscribeAlerts(token);
+          if (!ok) throw new Error("This unsubscribe link is not valid. You can switch alerts off from your account page instead.");
+          $("go").hidden = true; $("intro").hidden = true;
+          say("Done. You will no longer receive job alert emails.", "success");
+        } catch (err) { $("go").disabled = false; say(err.message, "error"); }
+      });
+    });
+  </script>
+</body>
+</html>

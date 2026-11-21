@@ -280,6 +280,16 @@ textarea { resize: vertical; min-height: 130px; }
 .form-msg.success { background: #dcfce7; color: var(--success); }
 .hint { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
 
+/* Field-of-work tick chips (registration + job alerts) */
+.fields-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.fchip { display: inline-flex; align-items: center; gap: 0; cursor: pointer; margin: 0; font-weight: 500; }
+.fchip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.fchip span { padding: 7px 13px; border: 1px solid var(--border); border-radius: 999px; font-size: 0.85rem; background: #fff; color: var(--text, #1f2937); transition: background .15s, border-color .15s, color .15s; }
+.fchip:hover span { border-color: var(--navy); }
+.fchip input:checked + span { background: var(--navy); border-color: var(--navy); color: #fff; }
+.fchip input:focus-visible + span { outline: 2px solid var(--gold, #c9922a); outline-offset: 2px; }
+.fchip-toggle span { border-radius: 8px; padding: 9px 14px; }
+
 /* Auth */
 .auth-wrap { max-width: 480px; margin: 56px auto; }
 .tabs { display: flex; background: #e8edf3; border-radius: 10px; padding: 4px; margin-bottom: 24px; }

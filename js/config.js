@@ -7,6 +7,14 @@ window.TC_CONFIG = {
   key: "sb_publishable_bo0wQnkwO-PcJsnIIKbP0w_TCNAYZNL"
 };
 
+/* Fields of work. The same list is used for vacancy categories and for the fields candidates choose
+ * for job alerts, so a job only reaches candidates whose field matches exactly. */
+window.TC_FIELDS = [
+  "Administration", "Customer Service", "Engineering", "Finance", "Human Resources", "IT & Software",
+  "Sales & Marketing", "Healthcare", "Education", "Hospitality & Tourism", "Construction & Property",
+  "Logistics & Supply Chain", "Manufacturing & Production", "Legal", "Retail", "Security", "Mining & Energy", "Other"
+];
+
 window.sb = window.supabase.createClient(window.TC_CONFIG.url, window.TC_CONFIG.key, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });

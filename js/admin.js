@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     contact_message: ["Contact message", ""], user_suspended: ["Account suspended", "bad"],
     user_reactivated: ["Account reactivated", "ok"], user_deleted: ["Account deleted", "bad"],
     user_approved: ["Account approved", "ok"], user_rejected: ["Account rejected", "bad"], user_approval_reset: ["Approval revoked", "warn"],
-    cv_uploaded: ["CV uploaded", "info"], cv_removed: ["CV removed", "warn"],
+    cv_uploaded: ["CV uploaded", "info"], cv_removed: ["CV removed", "warn"], job_alerts_sent: ["Job alerts sent", "info"],
     notes_updated: ["Notes updated", "warn"], application_status: ["Application status", "warn"],
     vacancy_created: ["Vacancy created", "info"], vacancy_updated: ["Vacancy updated", "warn"],
     vacancy_deleted: ["Vacancy deleted", "bad"], export: ["Data export", "warn"],
@@ -371,7 +371,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div class="field"><label for="v-type">Type</label><select id="v-type">${JOB_TYPES.map(t => `<option ${t === f.type ? "selected" : ""}>${t}</option>`).join("")}</select></div>
         </div>
         <div class="row">
-          <div class="field"><label for="v-cat">Category</label><input id="v-cat" maxlength="80" value="${e(f.category)}" placeholder="e.g. Finance" required></div>
+          <div class="field"><label for="v-cat">Category (field of work)</label><select id="v-cat" required>
+            <option value="">Choose a field...</option>
+            ${[...new Set([...(window.TC_FIELDS || []), f.category].filter(Boolean))].map(c => `<option ${c === f.category ? "selected" : ""}>${e(c)}</option>`).join("")}
+          </select></div>
           <div class="field"><label for="v-sal">Salary</label><input id="v-sal" maxlength="120" value="${e(f.salary)}" placeholder="e.g. Market related"></div>
         </div>
         <div class="field"><label for="v-co">Company (shown publicly)</label><input id="v-co" maxlength="160" value="${e(f.company)}" list="v-co-list" autocomplete="off">
@@ -390,6 +393,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="field"><label for="v-desc">Full job description (shown when a candidate opens the job)</label>
           <textarea id="v-desc" maxlength="10000" style="min-height:200px" placeholder="About the company, key responsibilities, working hours, benefits, how to apply...&#10;&#10;Leave a blank line between paragraphs. Start a line with - to make a bullet point.">${e(f.description || "")}</textarea></div>
         <div class="field"><label for="v-req">Requirements (one per line)</label><textarea id="v-req" style="min-height:90px">${e(f.requirements.join("\n"))}</textarea></div>
+        ${v && v.alertsSentAt
+          ? `<p class="hint">Job alert emails were sent for this vacancy on ${e(fmt(v.alertsSentAt))} to ${e(v.alertsCount ?? 0)} candidate(s).</p>`
+          : (!v || v.active) ? `<label class="check" style="display:flex;gap:10px;align-items:flex-start;margin:6px 0 14px">
+              <input type="checkbox" id="v-alert" ${v ? "" : "checked"} style="margin-top:4px">
+              <span><strong>Email matching candidates</strong><br><span class="hint">Sends a job alert from hr@talentcrafters.co.za to registered, approved candidates whose field of work matches this category. Sent once only.</span></span>
+            </label>` : ""}
         <div id="v-err" class="form-msg error" role="alert"></div>
         <button class="btn btn-primary" type="submit">${v ? "Save changes" : "Create vacancy"}</button>
       </form>`);
@@ -435,7 +444,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const err = $("#v-err");
       const val = {
         title: $("#v-title").value.trim(), location: $("#v-loc").value.trim(), type: $("#v-type").value,
-        category: $("#v-cat").value.trim(), salary: $("#v-sal").value.trim(), company: $("#v-co").value.trim(),
+        category: $("#v-cat").value, salary: $("#v-sal").value.trim(), company: $("#v-co").value.trim(),
         summary: $("#v-sum").value.trim(), description: $("#v-desc").value.trim(), requirements: $("#v-req").value.split("\n").map(s => s.trim()).filter(Boolean)
       };
       if (!val.title || !val.location || !val.category) { err.textContent = "Title, location and category are required."; err.className = "form-msg error show"; return; }
@@ -443,8 +452,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       btn.disabled = true;
       try {
         val.logo = logoFile ? await Vacancies.uploadLogo(logoFile) : logoUrl;
-        v ? await Vacancies.update(id, val) : await Vacancies.create(val);
-        m.close(); await render(); toast(v ? "Vacancy saved" : "Vacancy created");
+        const vid = v ? (await Vacancies.update(id, val), id) : await Vacancies.create(val);
+        const wantAlert = $("#v-alert") && $("#v-alert").checked;
+        let note = "";
+        if (wantAlert) {
+          try {
+            const r = await Vacancies.sendAlerts(vid);
+            note = r.sent ? ` and emailed ${r.sent} candidate${r.sent === 1 ? "" : "s"}` : " (no candidates in this field yet, so no emails were sent)";
+          } catch (e3) { note = ". Alert emails were NOT sent: " + e3.message; }
+        }
+        m.close(); await render(); toast((v ? "Vacancy saved" : "Vacancy created") + note);
       } catch (e2) { btn.disabled = false; err.textContent = e2.message; err.className = "form-msg error show"; }
     });
   }

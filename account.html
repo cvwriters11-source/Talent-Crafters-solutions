@@ -56,6 +56,11 @@
             <label for="r-role">I am a...</label>
             <select id="r-role"><option value="candidate">Job seeker</option><option value="employer">Employer / Company</option></select>
           </div>
+          <div class="field" id="fields-field">
+            <label>Your field(s) of work</label>
+            <p class="hint" style="margin:0 0 8px">Tick the fields you want job alerts for. We email you only when a new job is posted in one of them.</p>
+            <div class="fields-grid" id="r-fields"></div>
+          </div>
           <div class="field" id="company-field" hidden>
             <label for="r-company">Company name</label>
             <input id="r-company" autocomplete="organization">
@@ -152,6 +157,15 @@
             </div>
           </section>
 
+          <section id="alerts-card" class="card dash-card" hidden>
+            <h3>Job alerts</h3>
+            <p>Get an email from hr@talentcrafters.co.za when a new job is posted in your field of work.</p>
+            <div id="alerts-msg" class="form-msg" role="alert"></div>
+            <label class="fchip fchip-toggle"><input type="checkbox" id="alerts-on"><span>Email me new job alerts</span></label>
+            <div class="fields-grid" id="alerts-fields" style="margin:12px 0"></div>
+            <button class="btn btn-primary btn-sm" type="button" id="alerts-save">Save alert settings</button>
+          </section>
+
           <section id="pw-card" class="card dash-card" hidden>
             <h3>Security</h3>
             <p>Update your password. Use at least 8 characters.</p>
@@ -197,7 +211,17 @@
       document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
       document.querySelectorAll("[data-switch]").forEach(a => a.addEventListener("click", ev => { ev.preventDefault(); switchTab(a.dataset.switch); }));
       if (location.hash === "#register") switchTab("register");
-      $("r-role").addEventListener("change", () => { $("company-field").hidden = $("r-role").value !== "employer"; });
+      // Checkbox list of fields of work (shared list in js/config.js)
+      const fieldChecks = (el, selected) => {
+        el.innerHTML = (window.TC_FIELDS || []).map(f =>
+          `<label class="fchip"><input type="checkbox" value="${e(f)}" ${selected.includes(f) ? "checked" : ""}><span>${e(f)}</span></label>`).join("");
+      };
+      const pickedFields = el => [...el.querySelectorAll("input:checked")].map(i => i.value);
+      fieldChecks($("r-fields"), []);
+      $("r-role").addEventListener("change", () => {
+        $("company-field").hidden = $("r-role").value !== "employer";
+        $("fields-field").hidden = $("r-role").value === "employer";
+      });
 
       function done() { safeNext ? location.href = safeNext : location.reload(); }
 
@@ -275,10 +299,11 @@
         const btn = $("register").querySelector("button[type=submit]");
         btn.disabled = true;
         try {
-          const res = await Auth.register({ name: $("r-name").value, email: $("r-email").value, phone: $("r-phone").value, role: $("r-role").value, company: $("r-company").value, password: $("r-pass").value });
+          const res = await Auth.register({ name: $("r-name").value, email: $("r-email").value, phone: $("r-phone").value, role: $("r-role").value, company: $("r-company").value, password: $("r-pass").value, fields: pickedFields($("r-fields")) });
           if (res.needsConfirmation) {
             $("register").reset();
-            $("company-field").hidden = true;
+            $("company-field").hidden = true; $("fields-field").hidden = false;
+            fieldChecks($("r-fields"), []);
             show("Almost done! We've sent a confirmation link to your email address. Click it, then log in with the code we email you. Our team reviews every new account before you can apply for jobs.", "success");
             return;
           }
@@ -379,6 +404,21 @@
             if (!confirm("Remove your CV? You will need to upload one again before applying.")) return;
             try { await Auth.removeCV(); paintCV(); cvSay("Your CV has been removed.", "success"); }
             catch (err) { cvSay(err.message, "error"); }
+          });
+        }
+        if (user.role === "candidate") {
+          $("alerts-card").hidden = false;
+          const am = $("alerts-msg"), aSay = (t, c) => { am.textContent = t; am.className = "form-msg show " + c; };
+          $("alerts-on").checked = user.jobAlerts;
+          fieldChecks($("alerts-fields"), user.fields || []);
+          $("alerts-save").addEventListener("click", async () => {
+            const btn = $("alerts-save"); btn.disabled = true;
+            try {
+              const picked = pickedFields($("alerts-fields"));
+              await Auth.saveAlertPrefs(picked, $("alerts-on").checked);
+              aSay(!$("alerts-on").checked ? "Job alerts are switched off." : picked.length ? "Saved. We'll email you about new jobs in your chosen fields." : "Saved. Choose at least one field to receive alerts.", "success");
+            } catch (err) { aSay(err.message, "error"); }
+            finally { btn.disabled = false; }
           });
         }
         $("pw-card").hidden = false;

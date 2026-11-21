@@ -26,7 +26,8 @@
   const mapProfile = p => ({
     id: p.id, name: p.name, email: p.email, phone: p.phone, role: p.role, company: p.company,
     status: p.status, approval: p.approval, notes: p.notes, created: p.created_at, lastLogin: p.last_login,
-    cvPath: p.cv_path || "", cvName: p.cv_name || "", cvUpdated: p.cv_updated || ""
+    cvPath: p.cv_path || "", cvName: p.cv_name || "", cvUpdated: p.cv_updated || "",
+    fields: p.fields || [], jobAlerts: p.job_alerts !== false
   });
 
   /* ----- Email login code ----------------------------------------------------------------
@@ -50,8 +51,11 @@
   const mapVacancy = v => ({
     id: v.id, title: v.title, company: v.company, location: v.location, type: v.type, category: v.category,
     salary: v.salary, summary: v.summary, requirements: v.requirements || [], posted: v.posted, active: v.active,
-    logo: v.logo_url || "", description: v.description || ""
+    logo: v.logo_url || "", description: v.description || "",
+    alertsSentAt: v.alerts_sent_at || "", alertsCount: v.alerts_count
   });
+
+  const cleanFields = list => (Array.isArray(list) ? list : []).filter(f => (window.TC_FIELDS || []).includes(f)).slice(0, 20);
 
   let user = null;
 
@@ -83,13 +87,16 @@
     hint() { try { return JSON.parse(localStorage.getItem(HINT)); } catch { return null; } },
     current() { return user; },
 
-    async register({ name, email, phone, role, company, password }) {
+    async register({ name, email, phone, role, company, password, fields }) {
       email = email.trim().toLowerCase();
       role = role === "employer" ? "employer" : "candidate"; // admin can never be requested from the client
       if (role === "employer" && !(company || "").trim()) throw new Error("Please enter your company name.");
       const { data, error } = await sb.auth.signUp({
         email, password,
-        options: { data: { name: name.trim(), phone: (phone || "").trim(), role, company: (company || "").trim() } }
+        options: { data: {
+          name: name.trim(), phone: (phone || "").trim(), role, company: (company || "").trim(),
+          fields: role === "candidate" ? cleanFields(fields) : []
+        } }
       });
       if (error) fail(error, "Could not create your account. Please try again.");
       // With email confirmation on, an existing address returns a user with no identities.
@@ -190,6 +197,20 @@
       const { data, error } = await sb.storage.from("candidate-documents").createSignedUrl(path, 120);
       if (error || !data) throw new Error("Could not open that CV. It may have been removed.");
       return data.signedUrl;
+    },
+
+    /* ----- Job alerts (candidates choose their fields of work and can switch alerts off) ----- */
+    async saveAlertPrefs(fields, jobAlerts) {
+      if (!user) throw new Error("Please log in first.");
+      const clean = cleanFields(fields);
+      const { error } = await sb.from("profiles").update({ fields: clean, job_alerts: !!jobAlerts }).eq("id", user.id);
+      if (error) fail(error, "Could not save your job alert settings. Please try again.");
+      user.fields = clean; user.jobAlerts = !!jobAlerts;
+    },
+    async unsubscribeAlerts(token) {
+      const { data, error } = await sb.rpc("unsubscribe_job_alerts", { p_token: token });
+      if (error) throw new Error("That unsubscribe link is not valid.");
+      return data === true;
     },
 
     async logout() {
@@ -320,8 +341,20 @@
       return sb.storage.from("company-logos").getPublicUrl(path).data.publicUrl;
     },
     async create(v) {
-      const { error } = await sb.from("vacancies").insert(this._fields(v));
+      const { data, error } = await sb.from("vacancies").insert(this._fields(v)).select("id").single();
       if (error) fail(error, "Could not create the vacancy. Check all required fields.");
+      return data.id;
+    },
+    // Admin: email the vacancy to matching candidates (server-side; returns { sent, failed, matched }).
+    async sendAlerts(id) {
+      const { data, error } = await sb.functions.invoke("send-job-alerts", { body: { vacancyId: id } });
+      if (error) {
+        let msg = null;
+        try { msg = (await error.context.json()).error; } catch { /* ignore */ }
+        throw new Error(msg || "The job alerts could not be sent.");
+      }
+      if (!data || !data.ok) throw new Error("The job alerts could not be sent.");
+      return data;
     },
     async update(id, v) {
       const { data, error } = await sb.from("vacancies").update(this._fields(v)).eq("id", id).select("id");
