@@ -46,6 +46,15 @@
       </div>
     </section>
 
+    <section class="section alt clients" id="clients" aria-labelledby="clients-title" hidden>
+      <div class="container center">
+        <h2 class="section-title" id="clients-title">Sectors we recruit for</h2>
+        <p class="section-sub" id="clients-sub">Specialist recruitment across South Africa's key industries.</p>
+        <div class="client-logos" id="client-logos"></div>
+        <p class="hint" id="clients-admin-note" hidden>Admin note (visitors don't see this): this strip shows sectors until you add client logos in <code>js/clients.js</code>. It then becomes "Companies we work with".</p>
+      </div>
+    </section>
+
     <section class="section">
       <div class="container center">
         <h2 class="section-title">What we do</h2>
@@ -99,6 +108,7 @@
   <script src="js/main.js"></script>
   <script src="js/vacancies.js"></script>
   <script src="js/slider.js"></script>
+  <script src="js/clients.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
       const box = document.getElementById("latest-jobs");
