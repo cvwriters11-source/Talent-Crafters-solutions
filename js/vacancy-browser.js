@@ -132,11 +132,6 @@
   }
 
   function applyNow(id) {
-    // Must leave a Google review before applying.
-    if (typeof requireReviewPopup === "function" && requireReviewPopup()) {
-      toast("Please leave us a quick review first (use the bouncing button), then apply.");
-      return;
-    }
     select(id, { open: true });
     const j = VACANCIES.find(x => x.id === id);
     const top = applyBlock(j, user, applied.has(id)).top;

@@ -132,13 +132,12 @@
   }
 
   /* ---------- Welcome / review pop-up (admin controls the text and link) ----------
-   * Shows after 3 seconds for guests, again if they close it, when they try to leave the page,
-   * when they try to register, and when they try to apply — until they click the review button. */
+   * Rules: appears once after 3 seconds (not again on the same page); registration is blocked
+   * until they click the review button; once they have an account (are logged in) it never shows. */
   const REVIEWED_KEY = "tc_reviewed";
+  const SEEN_KEY = "tc_popup_seen";
   const NO_POPUP_PAGES = ["admin.html", "unsubscribe.html"];
   let popupCfg = null;
-  let reopenTimer = null;
-  let leaveArmed = false;
 
   window.hasLeftReview = function () {
     try { return localStorage.getItem(REVIEWED_KEY) === "1"; } catch { return false; }
@@ -147,10 +146,9 @@
     try { localStorage.setItem(REVIEWED_KEY, "1"); } catch { /* private mode */ }
   };
 
-  // Shows the pop-up. `preview` (admin) never marks a review and never reopens.
-  window.showSitePopup = function (p, { preview = false, once = false } = {}) {
+  // Shows the pop-up. `preview` (admin) never marks a review.
+  window.showSitePopup = function (p, { preview = false } = {}) {
     if (document.querySelector(".tc-popup-backdrop")) return;
-    clearTimeout(reopenTimer);
     const e = escapeHTML;
     const link = /^https:\/\/\S+$/i.test(p.link || "") ? p.link : "";
     const wrap = document.createElement("div");
@@ -166,24 +164,15 @@
         <button type="button" class="tc-popup-later">Close</button>
       </div>`;
     document.body.appendChild(wrap);
+    if (!preview) {
+      try { sessionStorage.setItem(SEEN_KEY, "1"); } catch { /* ignore */ }
+    }
 
     const dismiss = reviewed => {
       wrap.remove();
       document.removeEventListener("keydown", onKey);
       if (preview) return;
-      if (reviewed) {
-        markLeftReview();
-        clearTimeout(reopenTimer);
-        leaveArmed = false;
-        return;
-      }
-      if (once) return; // leave-page / apply prompts: don't start the 3s loop from here
-      // Keep asking guests: reopen after a few seconds until they click the review button.
-      const wait = Math.max(3, Number(p.delay) || 3) * 1000;
-      reopenTimer = setTimeout(() => {
-        if (!hasLeftReview() && !(Auth.current && Auth.current()) && popupCfg)
-          showSitePopup(popupCfg);
-      }, wait);
+      if (reviewed) markLeftReview();
     };
     const onKey = ev => { if (ev.key === "Escape") dismiss(false); };
     document.addEventListener("keydown", onKey);
@@ -195,40 +184,31 @@
     else wrap.querySelector(".tc-popup-later").focus();
   };
 
-  // Force the pop-up open. Returns true when a review is still required (caller should stop).
+  // Force the pop-up open (used when someone tries to register without reviewing).
   window.requireReviewPopup = function () {
     if (hasLeftReview()) return false;
-    const open = p => { if (p && p.enabled) { popupCfg = p; showSitePopup(p, { once: true }); } };
-    if (popupCfg) { open(popupCfg); return true; }
+    if (popupCfg) { showSitePopup(popupCfg); return true; }
     if (!window.Popup) return true;
-    Popup.get().then(open).catch(() => {});
+    Popup.get().then(p => {
+      if (p && p.enabled) { popupCfg = p; showSitePopup(p); }
+    }).catch(() => {});
     return true;
   };
 
   function startPopup() {
     if (NO_POPUP_PAGES.includes(page()) || !window.Popup) return;
     Auth.ready.then(() => {
+      if (Auth.current()) return; // registered / logged-in visitors are never asked again
+      if (hasLeftReview()) return;
+      try { if (sessionStorage.getItem(SEEN_KEY) === "1") return; } catch { /* ignore */ }
       Popup.get().then(p => {
         if (!p || !p.enabled || !p.title.trim()) return;
         popupCfg = p;
-        leaveArmed = true;
-
-        // 1) First show after 3 seconds (guests who have not reviewed yet).
-        if (!Auth.current() && !hasLeftReview()) {
-          const wait = Math.max(0, Number(p.delay) || 3) * 1000;
-          setTimeout(() => {
-            if (!hasLeftReview() && !Auth.current()) showSitePopup(p);
-          }, wait);
-        }
-
-        // 2) Trying to close / leave the page without a review.
-        window.addEventListener("beforeunload", ev => {
-          if (!leaveArmed || hasLeftReview() || !popupCfg || !popupCfg.enabled) return;
-          // Browsers only allow a generic leave warning; also open our pop-up if the tab stays.
-          try { showSitePopup(popupCfg, { once: true }); } catch { /* ignore */ }
-          ev.preventDefault();
-          ev.returnValue = "";
-        });
+        // Appear once, after 3 seconds only (admin can change the delay).
+        const wait = Math.max(0, Number(p.delay) || 3) * 1000;
+        setTimeout(() => {
+          if (!hasLeftReview() && !Auth.current()) showSitePopup(p);
+        }, wait);
       }).catch(() => { /* the pop-up is optional; never break the page */ });
     });
   }
