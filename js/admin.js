@@ -35,6 +35,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
   const LEAD_STATUSES = ["New", "Researching", "Contacted", "Replied", "Not interested", "Do not contact"];
   const fmt = iso => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "-";
+  // Compact two-line date for table cells: date on top, time underneath.
+  const fmtCell = iso => iso
+    ? `<span class="date">${e(new Date(iso).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }))}<small>${e(new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</small></span>`
+    : "-";
   const actionBadge = a => { const [l, c] = ACTIONS[a] || [a, ""]; return `<span class="badge ${c}">${e(l)}</span>`; };
   const statusBadge = u => u.status === "suspended" ? `<span class="badge bad">Suspended</span>` : `<span class="badge ok">Active</span>`;
   const approvalBadge = u => ({
@@ -160,10 +164,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         </tr></thead><tbody>
         ${list.map(u => `<tr>
           ${isCo ? `<td><strong>${e(u.company)}</strong></td><td>${e(u.name)}</td>` : `<td><strong>${e(u.name)}</strong></td>`}
-          <td>${e(u.email)}</td><td>${e(u.phone || "-")}</td><td>${fmt(u.created)}</td><td>${fmt(u.lastLogin)}</td>
+          <td>${e(u.email)}</td><td>${e(u.phone || "-")}</td><td>${fmtCell(u.created)}</td><td>${fmtCell(u.lastLogin)}</td>
           ${isCo ? "" : `<td>${data.apps.filter(a => a.userId === u.id).length}</td>`}
           <td>${approvalBadge(u)}</td><td>${statusBadge(u)}</td>
-          <td style="white-space:nowrap"><button class="btn ${u.approval === "pending" ? "btn-accent" : "btn-primary"} btn-sm" data-view="${e(u.id)}">${u.approval === "pending" ? "Review" : "Manage"}</button>
+          <td class="actions"><button class="btn ${u.approval === "pending" ? "btn-accent" : "btn-primary"} btn-sm" data-view="${e(u.id)}">${u.approval === "pending" ? "Review" : "Manage"}</button>
             <button class="btn btn-danger btn-sm" data-del="${e(u.id)}" aria-label="Delete ${e(isCo ? u.company : u.name)}">Delete</button></td>
         </tr>`).join("")}
         </tbody></table>` : empty(`No ${isCo ? "companies" : "candidates"} found.`);
@@ -291,7 +295,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <table class="data"><thead><tr><th>Candidate</th><th>Email</th><th>Vacancy</th><th>Location</th><th>Applied</th><th>CV / Letter</th><th>Status</th></tr></thead><tbody>
         ${list.map(a => `<tr>
           <td><strong>${e(a.user ? a.user.name : "Unknown")}</strong></td><td>${e(a.user ? a.user.email : "-")}</td>
-          <td>${e(a.title)}</td><td>${e(a.location)}</td><td>${fmt(a.date)}</td>
+          <td>${e(a.title)}</td><td>${e(a.location)}</td><td>${fmtCell(a.date)}</td>
           <td>${a.user ? `<button class="btn btn-outline-dark btn-sm" data-open="${e(a.user.id)}">${a.user.cvPath ? "CV" : "No CV"}${a.coverLetter ? " + letter" : ""}</button>` : "-"}</td>
           <td><select data-app="${e(a.id)}" aria-label="Application status">${APP_STATUSES.map(s => `<option ${s === a.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
         </tr>`).join("")}</tbody></table>` : empty("No applications found.");
@@ -334,7 +338,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <td>${e(v.location)}</td><td>${e(v.type)}</td><td>${e(v.category)}</td><td>${e(v.posted)}</td>
           <td>${data.apps.filter(a => a.jobId === v.id).length}</td>
           <td>${v.active ? `<span class="badge ok">Open</span>` : `<span class="badge">Closed</span>`}</td>
-          <td style="white-space:nowrap">
+          <td class="actions">
             <button class="btn btn-outline-dark btn-sm" data-edit="${e(v.id)}">Edit</button>
             <button class="btn btn-outline-dark btn-sm" data-toggle="${e(v.id)}">${v.active ? "Close" : "Reopen"}</button>
           </td></tr>`).join("")}</tbody></table>` : empty("No vacancies found.");
@@ -574,7 +578,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   function logTable(list) {
     return `<table class="data"><thead><tr><th>When</th><th>Who</th><th>Role</th><th>Action</th><th>Details</th></tr></thead><tbody>
       ${list.map(l => `<tr>
-        <td class="small" style="white-space:nowrap">${fmt(l.ts)}</td>
+        <td class="small">${fmtCell(l.ts)}</td>
         <td><strong>${e(l.actorName)}</strong><div class="muted small">${e(l.actorEmail)}</div></td>
         <td><span class="badge">${e(l.actorRole)}</span></td>
         <td>${actionBadge(l.action)}</td><td>${e(l.details)}</td>

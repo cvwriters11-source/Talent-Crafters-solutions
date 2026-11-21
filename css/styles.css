@@ -401,9 +401,14 @@ textarea { resize: vertical; min-height: 130px; }
 .toolbar select { width: auto; flex: 0 0 auto; }
 .toolbar .spacer { flex: 1; }
 .table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
-table.data { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-table.data th { text-align: left; background: #eef1f8; color: var(--navy); padding: 12px 14px; white-space: nowrap; position: sticky; top: 0; }
-table.data td { padding: 12px 14px; border-top: 1px solid var(--border); vertical-align: top; }
+table.data { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+table.data th { text-align: left; background: #eef1f8; color: var(--navy); padding: 10px 8px; font-size: 0.8rem; line-height: 1.2; vertical-align: bottom; position: sticky; top: 0; }
+table.data td { padding: 10px 8px; border-top: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
+table.data td .btn-sm { padding: 6px 10px; font-size: 0.8rem; }
+table.data td.actions { white-space: nowrap; overflow-wrap: normal; }
+table.data td.actions .btn + .btn { margin-left: 4px; }
+table.data .date { white-space: nowrap; }
+table.data .date small { display: block; color: var(--muted); font-size: 0.75rem; }
 table.data tr:hover td { background: #fafbff; }
 table.data select { padding: 6px 8px; font-size: 0.85rem; width: auto; }
 .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #e8edf3; color: var(--navy); white-space: nowrap; }
