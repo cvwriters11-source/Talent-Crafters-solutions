@@ -265,6 +265,14 @@ input, select, textarea {
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; border-color: var(--gold); }
 textarea { resize: vertical; min-height: 130px; }
 .field { margin-bottom: 18px; }
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 48px; }
+.pw-toggle {
+  position: absolute; top: 0; right: 0; height: 100%; width: 46px; display: grid; place-items: center;
+  background: none; border: 0; cursor: pointer; color: var(--muted); border-radius: 0 8px 8px 0;
+}
+.pw-toggle:hover { color: var(--navy); }
+.pw-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-msg { padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 0.95rem; display: none; }
 .form-msg.show { display: block; }
