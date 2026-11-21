@@ -23,8 +23,17 @@
         <form id="login" class="panel active" novalidate>
           <div class="field"><label for="l-email">Email</label><input id="l-email" type="email" autocomplete="email" required></div>
           <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" autocomplete="current-password" required></div>
+          <p class="hint" style="text-align:right;margin:-8px 0 14px"><a href="#" data-switch="forgot">Forgot password?</a></p>
           <button class="btn btn-primary" style="width:100%" type="submit">Login</button>
           <p class="hint center" style="margin-top:14px">No account? <a href="#" data-switch="register">Register here</a></p>
+        </form>
+
+        <form id="forgot" class="panel" novalidate>
+          <h3 style="color:var(--navy);margin-bottom:6px">Forgot your password?</h3>
+          <p class="hint" style="margin-bottom:16px">Enter the email you registered with and we'll send you a link to choose a new password.</p>
+          <div class="field"><label for="f-email">Email</label><input id="f-email" type="email" autocomplete="email" required></div>
+          <button class="btn btn-primary" style="width:100%" type="submit">Send reset link</button>
+          <p class="hint center" style="margin-top:14px"><a href="#" data-switch="login">Back to login</a></p>
         </form>
 
         <form id="register" class="panel" novalidate>
@@ -47,6 +56,20 @@
           </div>
           <button class="btn btn-primary" style="width:100%" type="submit">Create account</button>
           <p class="hint center" style="margin-top:14px">Already registered? <a href="#" data-switch="login">Login here</a></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- Opened from a password-reset email -->
+    <div id="reset-view" class="auth-wrap" hidden>
+      <div class="card">
+        <h3 style="color:var(--navy);margin-bottom:6px">Choose a new password</h3>
+        <p class="hint" style="margin-bottom:16px">At least 8 characters. A longer, unique passphrase is safer.</p>
+        <div id="rs-msg" class="form-msg" role="alert"></div>
+        <form id="reset-form" novalidate>
+          <div class="field"><label for="rs-new">New password</label><input id="rs-new" type="password" autocomplete="new-password" required></div>
+          <div class="field"><label for="rs-new2">Confirm new password</label><input id="rs-new2" type="password" autocomplete="new-password" required></div>
+          <button class="btn btn-primary" style="width:100%" type="submit">Save new password</button>
         </form>
       </div>
     </div>
@@ -95,6 +118,11 @@
   </main>
 
   <div id="site-footer"></div>
+  <script>
+    // Read the reset-email link state before the Supabase client consumes (and clears) the URL hash.
+    window.TC_RECOVERY = /[#&]type=recovery/.test(location.hash);
+    window.TC_LINK_ERROR = /[#&]error(_code)?=/.test(location.hash);
+  </script>
   <script src="js/vendor/supabase.js"></script>
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
@@ -113,7 +141,7 @@
 
       function switchTab(name) {
         hide();
-        document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+        document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name || (name === "forgot" && t.dataset.tab === "login")));
         document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === name));
       }
       document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
@@ -128,6 +156,20 @@
         if (!$("l-email").value || !$("l-pass").value) return show("Enter your email and password.", "error");
         try { await Auth.login($("l-email").value, $("l-pass").value); done(); }
         catch (err) { show(err.message, "error"); }
+      });
+
+      $("forgot").addEventListener("submit", async ev => {
+        ev.preventDefault(); hide();
+        const email = $("f-email").value.trim();
+        if (!/^\S+@\S+\.\S+$/.test(email)) return show("Please enter a valid email address.", "error");
+        const btn = $("forgot").querySelector("button[type=submit]");
+        btn.disabled = true;
+        try {
+          await Auth.requestPasswordReset(email);
+          // Same message whether or not the address has an account, so nobody can probe who is registered.
+          show("If an account exists for " + email + ", we've sent a link to reset the password. Check your inbox and spam folder; the link expires after a short time.", "success");
+        } catch (err) { show(err.message, "error"); }
+        finally { btn.disabled = false; }
       });
 
       $("register").addEventListener("submit", async ev => {
@@ -150,6 +192,28 @@
         } catch (err) { show(err.message, "error"); }
         finally { btn.disabled = false; }
       });
+
+      // Arrived from a password-reset email: the link signs the user in temporarily so they can set a new password.
+      if (window.TC_RECOVERY) {
+        await Auth.ready;
+        if (Auth.current()) {
+          $("reset-view").hidden = false;
+          $("reset-form").addEventListener("submit", async ev => {
+            ev.preventDefault();
+            const rm = $("rs-msg"), say = (t, c) => { rm.textContent = t; rm.className = "form-msg show " + c; };
+            if ($("rs-new").value.length < 8) return say("Password must be at least 8 characters.", "error");
+            if ($("rs-new").value !== $("rs-new2").value) return say("Passwords do not match.", "error");
+            const btn = ev.target.querySelector("button[type=submit]");
+            btn.disabled = true;
+            try {
+              await Auth.changePassword($("rs-new").value);
+              say("Password updated. Taking you to your account...", "success");
+              setTimeout(() => { location.href = "account.html"; }, 1400);
+            } catch (err) { say(err.message, "error"); btn.disabled = false; }
+          });
+          return;
+        }
+      }
 
       // Dashboard (wait for the real session before deciding what to show)
       await Auth.ready;
@@ -193,6 +257,10 @@
         $("logout").addEventListener("click", async () => { await Auth.logout(); location.href = "index.html"; });
       } else {
         $("auth-view").hidden = false;
+        if (window.TC_RECOVERY || window.TC_LINK_ERROR) {
+          switchTab("forgot");
+          show("That reset link is invalid or has expired. Enter your email to get a new one.", "error");
+        }
       }
     });
   </script>

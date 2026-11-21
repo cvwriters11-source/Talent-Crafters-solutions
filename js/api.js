@@ -86,6 +86,14 @@
       return user;
     },
 
+    // Emails a reset link. Callers should show the same message whether or not the address has an account.
+    async requestPasswordReset(email) {
+      const { error } = await sb.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+        redirectTo: location.origin + "/account.html"
+      });
+      if (error) fail(error, "Could not send the reset email. Please try again in a few minutes.");
+    },
+
     async changePassword(newPassword) {
       const { error } = await sb.auth.updateUser({ password: newPassword });
       if (error) {
