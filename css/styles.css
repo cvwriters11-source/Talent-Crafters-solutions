@@ -320,6 +320,11 @@ textarea { resize: vertical; min-height: 130px; }
 .dash-card-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .dash-card-head p { font-size: 0.92rem; }
 #apps { margin-top: 12px; }
+.cv-current { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: var(--bg); border: 1px dashed var(--border); border-radius: 10px; margin-bottom: 14px; font-size: 0.92rem; }
+.cv-current strong { color: var(--navy); overflow-wrap: anywhere; }
+.cv-current span { color: var(--muted); font-size: 0.85rem; }
+.cv-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.cover-letter { white-space: pre-wrap; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-top: 6px; font-size: 0.9rem; color: var(--navy); }
 .notice {
   display: flex; gap: 14px; align-items: flex-start; background: #fff8e8; border: 1px solid rgba(201, 146, 42, 0.45);
   border-left: 4px solid var(--gold); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 24px;

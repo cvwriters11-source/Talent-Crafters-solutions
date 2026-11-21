@@ -25,7 +25,8 @@
 
   const mapProfile = p => ({
     id: p.id, name: p.name, email: p.email, phone: p.phone, role: p.role, company: p.company,
-    status: p.status, approval: p.approval, notes: p.notes, created: p.created_at, lastLogin: p.last_login
+    status: p.status, approval: p.approval, notes: p.notes, created: p.created_at, lastLogin: p.last_login,
+    cvPath: p.cv_path || "", cvName: p.cv_name || "", cvUpdated: p.cv_updated || ""
   });
 
   /* ----- Email login code ----------------------------------------------------------------
@@ -43,7 +44,7 @@
   };
   const SUSPENDED = () => "This account has been suspended. Please contact " + SITE.email + ".";
   const mapApp = a => ({
-    id: a.id, userId: a.user_id, jobId: a.job_id, status: a.status, date: a.created_at,
+    id: a.id, userId: a.user_id, jobId: a.job_id, status: a.status, date: a.created_at, coverLetter: a.cover_letter || "",
     title: a.vacancies ? a.vacancies.title : "(removed vacancy)", location: a.vacancies ? a.vacancies.location : ""
   });
   const mapVacancy = v => ({
@@ -153,6 +154,44 @@
       }
     },
 
+    /* ----- CV (private storage; only the owner and admins can open it) ----- */
+    async uploadCV(file) {
+      if (!user) throw new Error("Please log in first.");
+      const types = {
+        "application/pdf": "pdf", "application/msword": "doc",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx"
+      };
+      const ext = types[file.type];
+      if (!ext) throw new Error("Please choose a PDF, DOC or DOCX file.");
+      if (file.size > 5242880) throw new Error("That file is too large. Please use a CV under 5 MB.");
+      const path = user.id + "/cv-" + Date.now() + "." + ext;
+      const { error } = await sb.storage.from("candidate-documents").upload(path, file, { contentType: file.type });
+      if (error) fail(error, "Could not upload your CV. Please try again.");
+      const name = file.name.slice(0, 200);
+      const { error: e2 } = await sb.from("profiles").update({ cv_path: path, cv_name: name, cv_updated: new Date().toISOString() }).eq("id", user.id);
+      if (e2) {
+        await sb.storage.from("candidate-documents").remove([path]);
+        fail(e2, "Could not save your CV. Please try again.");
+      }
+      const old = user.cvPath;
+      user.cvPath = path; user.cvName = name; user.cvUpdated = new Date().toISOString();
+      if (old && old !== path) await sb.storage.from("candidate-documents").remove([old]);
+    },
+    async removeCV() {
+      if (!user || !user.cvPath) return;
+      const old = user.cvPath;
+      const { error } = await sb.from("profiles").update({ cv_path: null, cv_name: "", cv_updated: null }).eq("id", user.id);
+      if (error) fail(error, "Could not remove your CV. Please try again.");
+      user.cvPath = ""; user.cvName = ""; user.cvUpdated = "";
+      await sb.storage.from("candidate-documents").remove([old]);
+    },
+    // Short-lived private link to open a CV (owner or admin only; the database decides).
+    async cvUrl(path) {
+      const { data, error } = await sb.storage.from("candidate-documents").createSignedUrl(path, 120);
+      if (error || !data) throw new Error("Could not open that CV. It may have been removed.");
+      return data.signedUrl;
+    },
+
     async logout() {
       await sb.auth.signOut();
       user = null;
@@ -161,18 +200,19 @@
 
     async applications(userId) {
       const { data, error } = await sb.from("applications")
-        .select("id, user_id, job_id, status, created_at, vacancies(title, location)")
+        .select("id, user_id, job_id, status, created_at, cover_letter, vacancies(title, location)")
         .eq("user_id", userId).order("created_at", { ascending: false });
       if (error) fail(error, "Could not load your applications.");
       return data.map(mapApp);
     },
 
     // Returns false when the user already applied.
-    async apply(job) {
-      const { error } = await sb.from("applications").insert({ job_id: job.id });
+    async apply(job, coverLetter) {
+      const { error } = await sb.from("applications").insert({ job_id: job.id, cover_letter: (coverLetter || "").trim().slice(0, 4000) });
       if (error) {
         if (error.code === "23505") return false;
         if (user && user.approval !== "approved") throw new Error("Your account is still waiting for approval. We'll let you know once it's approved, then you can apply.");
+        if (user && !user.cvPath) throw new Error("Please upload your CV on your account page before applying.");
         fail(error, "Could not submit your application.");
       }
       return true;
@@ -196,7 +236,7 @@
     },
     async allApplications() {
       const { data, error } = await sb.from("applications")
-        .select("id, user_id, job_id, status, created_at, vacancies(title, location)")
+        .select("id, user_id, job_id, status, created_at, cover_letter, vacancies(title, location)")
         .order("created_at", { ascending: false });
       if (error) fail(error, "Could not load applications.");
       return data.map(mapApp);

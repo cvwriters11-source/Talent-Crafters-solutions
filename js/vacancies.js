@@ -87,7 +87,16 @@ async function openJobModal(id) {
     <button class="btn btn-primary" disabled>Apply now</button>
     <p class="hint" style="margin-top:10px">${user.approval === "rejected" ? "Your account was not approved, so you can't apply." : "Your account is awaiting approval. You can apply as soon as our team approves it."}</p>`;
   else if (applied) action = `<button class="btn btn-primary" disabled>Already applied</button>`;
-  else action = `<button class="btn btn-primary" id="apply-btn">Apply now</button>`;
+  else if (!user.cvPath) action = `
+    <a class="btn btn-primary" href="account.html">Upload your CV to apply</a>
+    <p class="hint" style="margin-top:10px">Add your CV on your account page first, then come back and apply.</p>`;
+  else action = `
+    <div class="field">
+      <label for="cover-letter">Cover letter <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <textarea id="cover-letter" maxlength="4000" rows="5" placeholder="Tell us briefly why you are a good fit for this role."></textarea>
+      <p class="hint">Your CV (${e(user.cvName || "on file")}) is sent with your application.</p>
+    </div>
+    <button class="btn btn-primary" id="apply-btn">Submit application</button>`;
 
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop open";
@@ -117,7 +126,8 @@ async function openJobModal(id) {
   if (applyBtn) applyBtn.addEventListener("click", async () => {
     applyBtn.disabled = true;
     try {
-      const ok = await Auth.apply(job);
+      const letter = backdrop.querySelector("#cover-letter");
+      const ok = await Auth.apply(job, letter ? letter.value : "");
       close();
       toast(ok ? "Application submitted for " + job.title : "You've already applied for " + job.title);
     } catch (err) {

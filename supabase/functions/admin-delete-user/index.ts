@@ -46,7 +46,12 @@ Deno.serve(async (req: Request) => {
     if (!target) return json(404, { error: "User not found" });
     if (target.role === "admin") return json(403, { error: "Admin accounts cannot be deleted here" });
 
-    // 4. Delete the login (profile + applications cascade), then record it in the audit log
+    // 4. Erase the person's uploaded documents (CV), then delete the login (profile + applications
+    //    cascade), then record it in the audit log
+    const docs = admin.storage.from("candidate-documents");
+    const { data: files } = await docs.list(userId, { limit: 100 });
+    if (files && files.length) await docs.remove(files.map((f) => `${userId}/${f.name}`));
+
     const { error: delErr } = await admin.auth.admin.deleteUser(userId);
     if (delErr) return json(500, { error: "Could not delete the account" });
 

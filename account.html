@@ -139,6 +139,19 @@
             <div id="details"></div>
           </section>
 
+          <section id="cv-card" class="card dash-card" hidden>
+            <h3>My CV</h3>
+            <p>Employers and our team review your CV when you apply. PDF, DOC or DOCX, up to 5 MB.</p>
+            <div id="cv-msg" class="form-msg" role="alert"></div>
+            <div id="cv-current" class="cv-current"></div>
+            <input type="file" id="cv-file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+            <div class="cv-actions">
+              <button class="btn btn-primary btn-sm" type="button" id="cv-choose">Upload CV</button>
+              <button class="btn btn-outline-dark btn-sm" type="button" id="cv-view" hidden>View</button>
+              <button class="btn btn-outline-dark btn-sm" type="button" id="cv-remove" hidden>Remove</button>
+            </div>
+          </section>
+
           <section id="pw-card" class="card dash-card" hidden>
             <h3>Security</h3>
             <p>Update your password. Use at least 8 characters.</p>
@@ -337,6 +350,37 @@
           <div class="dashboard-item"><span>Name</span><strong>${e(user.name)}</strong></div>
           <div class="dashboard-item"><span>Email</span><strong>${e(user.email)}</strong></div>
           <div class="dashboard-item"><span>Phone</span><strong>${e(user.phone || "-")}</strong></div>`;
+        if (user.role === "candidate") {
+          $("cv-card").hidden = false;
+          const cm = $("cv-msg"), cvSay = (t, c) => { cm.textContent = t; cm.className = "form-msg show " + c; };
+          const paintCV = () => {
+            const has = !!user.cvPath;
+            $("cv-current").innerHTML = has
+              ? `<strong>${e(user.cvName || "Your CV")}</strong><span>Uploaded ${new Date(user.cvUpdated).toLocaleDateString()}</span>`
+              : `<span>No CV uploaded yet. You need one before you can apply for vacancies.</span>`;
+            $("cv-choose").textContent = has ? "Replace CV" : "Upload CV";
+            $("cv-view").hidden = $("cv-remove").hidden = !has;
+          };
+          paintCV();
+          $("cv-choose").addEventListener("click", () => $("cv-file").click());
+          $("cv-file").addEventListener("change", async ev => {
+            const f = ev.target.files[0];
+            if (!f) return;
+            $("cv-choose").disabled = true;
+            cvSay("Uploading...", "success");
+            try { await Auth.uploadCV(f); paintCV(); cvSay("Your CV has been saved.", "success"); }
+            catch (err) { cvSay(err.message, "error"); }
+            finally { $("cv-choose").disabled = false; ev.target.value = ""; }
+          });
+          $("cv-view").addEventListener("click", async () => {
+            try { window.open(await Auth.cvUrl(user.cvPath), "_blank", "noopener"); } catch (err) { cvSay(err.message, "error"); }
+          });
+          $("cv-remove").addEventListener("click", async () => {
+            if (!confirm("Remove your CV? You will need to upload one again before applying.")) return;
+            try { await Auth.removeCV(); paintCV(); cvSay("Your CV has been removed.", "success"); }
+            catch (err) { cvSay(err.message, "error"); }
+          });
+        }
         $("pw-card").hidden = false;
         $("pw-form").addEventListener("submit", async ev => {
           ev.preventDefault();

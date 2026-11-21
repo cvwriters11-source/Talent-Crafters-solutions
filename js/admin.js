@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     contact_message: ["Contact message", ""], user_suspended: ["Account suspended", "bad"],
     user_reactivated: ["Account reactivated", "ok"], user_deleted: ["Account deleted", "bad"],
     user_approved: ["Account approved", "ok"], user_rejected: ["Account rejected", "bad"], user_approval_reset: ["Approval revoked", "warn"],
+    cv_uploaded: ["CV uploaded", "info"], cv_removed: ["CV removed", "warn"],
     notes_updated: ["Notes updated", "warn"], application_status: ["Application status", "warn"],
     vacancy_created: ["Vacancy created", "info"], vacancy_updated: ["Vacancy updated", "warn"],
     vacancy_deleted: ["Vacancy deleted", "bad"], export: ["Data export", "warn"],
@@ -162,14 +163,24 @@ document.addEventListener("DOMContentLoaded", async () => {
           <td>${e(u.email)}</td><td>${e(u.phone || "-")}</td><td>${fmt(u.created)}</td><td>${fmt(u.lastLogin)}</td>
           ${isCo ? "" : `<td>${data.apps.filter(a => a.userId === u.id).length}</td>`}
           <td>${approvalBadge(u)}</td><td>${statusBadge(u)}</td>
-          <td><button class="btn ${u.approval === "pending" ? "btn-accent" : "btn-primary"} btn-sm" data-view="${e(u.id)}">${u.approval === "pending" ? "Review" : "Manage"}</button></td>
+          <td style="white-space:nowrap"><button class="btn ${u.approval === "pending" ? "btn-accent" : "btn-primary"} btn-sm" data-view="${e(u.id)}">${u.approval === "pending" ? "Review" : "Manage"}</button>
+            <button class="btn btn-danger btn-sm" data-del="${e(u.id)}" aria-label="Delete ${e(isCo ? u.company : u.name)}">Delete</button></td>
         </tr>`).join("")}
         </tbody></table>` : empty(`No ${isCo ? "companies" : "candidates"} found.`);
     };
     body.querySelector("#q").addEventListener("input", paint);
     body.querySelector("#st").addEventListener("input", paint);
     body.querySelector("#ap").addEventListener("input", paint);
-    body.querySelector("#tbl").addEventListener("click", ev => { const b = ev.target.closest("[data-view]"); if (b) openUser(b.dataset.view); });
+    body.querySelector("#tbl").addEventListener("click", async ev => {
+      const b = ev.target.closest("[data-view]");
+      if (b) return openUser(b.dataset.view);
+      const d = ev.target.closest("[data-del]");
+      if (!d) return;
+      const u = data.users.find(x => x.id === d.dataset.del);
+      if (!u || !confirm("Permanently delete " + (isCo ? u.company : u.name) + " (" + u.email + ")? This removes their login, CV and applications and cannot be undone. The activity log keeps a record.")) return;
+      d.disabled = true;
+      try { await Auth.removeUser(u.id); await render(); toast("Account deleted"); } catch (err) { d.disabled = false; fail(err); }
+    });
     body.querySelector("#export").addEventListener("click", () =>
       downloadCSV(isCo ? "companies" : "candidates",
         [isCo ? "Company" : "Name", ...(isCo ? ["Contact person"] : []), "Email", "Phone", "Registered", "Last login", ...(isCo ? [] : ["Applications"]), "Approval", "Status", "Notes"],
@@ -200,8 +211,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         <dt>Last login</dt><dd>${fmt(u.lastLogin)}</dd>
       </dl>
       ${isCo ? "" : `
+        <h4>CV</h4>
+        ${u.cvPath
+          ? `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><strong>${e(u.cvName || "CV")}</strong><span class="muted small">Uploaded ${fmt(u.cvUpdated)}</span><button class="btn btn-primary btn-sm" id="open-cv">Open CV</button></div>`
+          : `<p class="muted small">No CV uploaded yet.</p>`}
         <h4>Applications (${apps.length})</h4>
-        ${apps.length ? `<ul class="timeline" style="margin-bottom:8px">${apps.map(a => `<li><strong>${e(a.title)}</strong> &middot; ${e(a.location)} &middot; ${fmt(a.date)} <span class="badge warn">${e(a.status)}</span></li>`).join("")}</ul>` : `<p class="muted small">No applications yet.</p>`}`}
+        ${apps.length ? `<ul class="timeline" style="margin-bottom:8px">${apps.map(a => `<li><strong>${e(a.title)}</strong> &middot; ${e(a.location)} &middot; ${fmt(a.date)} <span class="badge warn">${e(a.status)}</span>
+          ${a.coverLetter ? `<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--gold-dark);font-weight:600">Cover letter</summary><div class="cover-letter">${e(a.coverLetter)}</div></details>` : `<span class="muted small"> &middot; no cover letter</span>`}</li>`).join("")}</ul>` : `<p class="muted small">No applications yet.</p>`}`}
+      <h4>Password</h4>
+      <p class="muted small" style="margin-bottom:8px">Passwords are stored encrypted, so nobody (including admins) can view them. If this person is locked out, send them a reset link.</p>
+      <button class="btn btn-outline-dark btn-sm" id="send-reset">Send password reset email</button>
       <h4>Admin notes</h4>
       <textarea id="notes" maxlength="4000" style="min-height:80px" placeholder="Internal notes (not visible to the user)">${e(u.notes || "")}</textarea>
       <div style="margin:8px 0 4px"><button class="btn btn-outline-dark btn-sm" id="save-notes">Save notes</button></div>
@@ -227,6 +246,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     on("#reject", ev => {
       if (!confirm("Reject this account? They will see that it was not approved and cannot apply.")) return;
       act(ev.target, () => Auth.setApproval(id, "rejected"), "Account rejected");
+    });
+    on("#open-cv", async ev => {
+      ev.target.disabled = true;
+      try { window.open(await Auth.cvUrl(u.cvPath), "_blank", "noopener"); } catch (err) { fail(err); }
+      finally { ev.target.disabled = false; }
+    });
+    on("#send-reset", async ev => {
+      if (!confirm("Email a password reset link to " + u.email + "?")) return;
+      ev.target.disabled = true;
+      try { await Auth.requestPasswordReset(u.email); toast("Reset link sent to " + u.email); }
+      catch (err) { fail(err); }
+      finally { ev.target.disabled = false; }
     });
     $("#toggle").addEventListener("click", ev => {
       if (!suspended && !confirm("Suspend this account? They will be unable to apply or manage their account until reactivated.")) return;
@@ -257,15 +288,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     const paint = () => {
       const list = rows();
       body.querySelector("#tbl").innerHTML = list.length ? `
-        <table class="data"><thead><tr><th>Candidate</th><th>Email</th><th>Vacancy</th><th>Location</th><th>Applied</th><th>Status</th></tr></thead><tbody>
+        <table class="data"><thead><tr><th>Candidate</th><th>Email</th><th>Vacancy</th><th>Location</th><th>Applied</th><th>CV / Letter</th><th>Status</th></tr></thead><tbody>
         ${list.map(a => `<tr>
           <td><strong>${e(a.user ? a.user.name : "Unknown")}</strong></td><td>${e(a.user ? a.user.email : "-")}</td>
           <td>${e(a.title)}</td><td>${e(a.location)}</td><td>${fmt(a.date)}</td>
+          <td>${a.user ? `<button class="btn btn-outline-dark btn-sm" data-open="${e(a.user.id)}">${a.user.cvPath ? "CV" : "No CV"}${a.coverLetter ? " + letter" : ""}</button>` : "-"}</td>
           <td><select data-app="${e(a.id)}" aria-label="Application status">${APP_STATUSES.map(s => `<option ${s === a.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
         </tr>`).join("")}</tbody></table>` : empty("No applications found.");
     };
     body.querySelector("#q").addEventListener("input", paint);
     body.querySelector("#st").addEventListener("input", paint);
+    body.querySelector("#tbl").addEventListener("click", ev => { const o = ev.target.closest("[data-open]"); if (o) openUser(o.dataset.open); });
     body.querySelector("#tbl").addEventListener("change", async ev => {
       const s = ev.target.closest("[data-app]");
       if (!s) return;
