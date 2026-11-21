@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vacancies | Talent Crafters</title>
+  <meta name="description" content="Browse current job vacancies from Talent Crafters and apply online.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main>
+    <section class="page-banner">
+      <div class="container">
+        <h1>Current Vacancies</h1>
+        <p>Find your next role. Search, filter and apply online.</p>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top:40px">
+      <div class="container">
+        <div class="filters">
+          <input type="search" id="q" placeholder="Search job title or keyword..." aria-label="Search">
+          <select id="category" aria-label="Category"><option value="">All categories</option></select>
+          <select id="location" aria-label="Location"><option value="">All locations</option></select>
+          <select id="type" aria-label="Job type"><option value="">All types</option></select>
+        </div>
+        <p class="results-count" id="count"></p>
+        <div id="jobs" class="grid grid-3"></div>
+        <div id="empty" class="empty" hidden>
+          <h3>No vacancies match your search</h3>
+          <p>Try different filters, or <a href="account.html">register</a> and we'll contact you when something suitable comes up.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="site-footer"></div>
+
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/vacancies.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const $ = id => document.getElementById(id);
+      $("count").textContent = "Loading vacancies...";
+      try { await loadVacancies(); }
+      catch (err) { $("count").textContent = ""; $("empty").hidden = false; $("empty").querySelector("h3").textContent = "Vacancies could not be loaded"; $("empty").querySelector("p").textContent = "Please check your connection and refresh the page."; return; }
+      const unique = key => [...new Set(VACANCIES.map(j => j[key]))].sort();
+      [["category", "category"], ["location", "location"], ["type", "type"]].forEach(([id, key]) =>
+        unique(key).forEach(v => $(id).insertAdjacentHTML("beforeend", `<option>${escapeHTML(v)}</option>`)));
+
+      function render() {
+        const q = $("q").value.trim().toLowerCase();
+        const list = VACANCIES.filter(j =>
+          (!q || (j.title + " " + j.summary + " " + j.category + " " + j.location).toLowerCase().includes(q)) &&
+          (!$("category").value || j.category === $("category").value) &&
+          (!$("location").value || j.location === $("location").value) &&
+          (!$("type").value || j.type === $("type").value)
+        ).sort((a, b) => b.posted.localeCompare(a.posted));
+
+        $("jobs").innerHTML = list.map(jobCardHTML).join("");
+        bindJobCards($("jobs"));
+        $("count").textContent = list.length + (list.length === 1 ? " vacancy found" : " vacancies found");
+        $("empty").hidden = list.length > 0;
+      }
+      ["q", "category", "location", "type"].forEach(id => $(id).addEventListener("input", render));
+      render();
+    });
+  </script>
+</body>
+</html>

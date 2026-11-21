@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register / Login | Talent Crafters</title>
+  <meta name="description" content="Create your Talent Crafters account or log in to apply for vacancies.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main class="container">
+    <!-- Logged-out view -->
+    <div id="auth-view" class="auth-wrap" hidden>
+      <div class="card">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="login" role="tab">Login</button>
+          <button class="tab" data-tab="register" role="tab">Register</button>
+        </div>
+        <div id="msg" class="form-msg" role="alert"></div>
+
+        <form id="login" class="panel active" novalidate>
+          <div class="field"><label for="l-email">Email</label><input id="l-email" type="email" autocomplete="email" required></div>
+          <div class="field"><label for="l-pass">Password</label><input id="l-pass" type="password" autocomplete="current-password" required></div>
+          <button class="btn btn-primary" style="width:100%" type="submit">Login</button>
+          <p class="hint center" style="margin-top:14px">No account? <a href="#" data-switch="register">Register here</a></p>
+        </form>
+
+        <form id="register" class="panel" novalidate>
+          <div class="field"><label for="r-name">Full name</label><input id="r-name" autocomplete="name" required></div>
+          <div class="row">
+            <div class="field"><label for="r-email">Email</label><input id="r-email" type="email" autocomplete="email" required></div>
+            <div class="field"><label for="r-phone">Phone</label><input id="r-phone" type="tel" autocomplete="tel"></div>
+          </div>
+          <div class="field">
+            <label for="r-role">I am a...</label>
+            <select id="r-role"><option value="candidate">Job seeker</option><option value="employer">Employer / Company</option></select>
+          </div>
+          <div class="field" id="company-field" hidden>
+            <label for="r-company">Company name</label>
+            <input id="r-company" autocomplete="organization">
+          </div>
+          <div class="row">
+            <div class="field"><label for="r-pass">Password</label><input id="r-pass" type="password" autocomplete="new-password" required><p class="hint">At least 8 characters</p></div>
+            <div class="field"><label for="r-pass2">Confirm password</label><input id="r-pass2" type="password" autocomplete="new-password" required></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%" type="submit">Create account</button>
+          <p class="hint center" style="margin-top:14px">Already registered? <a href="#" data-switch="login">Login here</a></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- Logged-in view -->
+    <div id="dash-view" style="padding:56px 0" hidden>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px">
+        <div>
+          <h1 style="color:var(--navy)" id="welcome"></h1>
+          <p style="color:var(--muted)" id="who"></p>
+        </div>
+        <button class="btn btn-outline-dark" id="logout">Logout</button>
+      </div>
+      <div id="pw-card" class="card" hidden style="margin-bottom:24px">
+        <h3 style="margin-bottom:12px">Change password</h3>
+        <div id="pw-msg" class="form-msg" role="alert"></div>
+        <form id="pw-form" novalidate>
+          <div class="row">
+            <div class="field"><label for="pw-new">New password</label><input id="pw-new" type="password" autocomplete="new-password"><p class="hint">At least 8 characters. A longer, unique passphrase is safer.</p></div>
+            <div class="field"><label for="pw-new2">Confirm new password</label><input id="pw-new2" type="password" autocomplete="new-password"></div>
+          </div>
+          <button class="btn btn-outline-dark btn-sm" type="submit">Update password</button>
+        </form>
+      </div>
+      <div id="admin-panel" hidden style="margin-bottom:24px">
+        <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+          <div>
+            <h3>Admin dashboard</h3>
+            <p>Manage candidates, companies, applications and view all activity.</p>
+          </div>
+          <a href="admin.html" class="btn btn-primary">Open dashboard</a>
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div class="card" id="apps-card">
+          <h3 style="margin-bottom:12px">My applications</h3>
+          <div id="apps"></div>
+          <a href="vacancies.html" class="btn btn-primary btn-sm" style="margin-top:16px">Browse vacancies</a>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:12px">My details</h3>
+          <div id="details"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const $ = id => document.getElementById(id);
+      const e = escapeHTML;
+      const msg = $("msg");
+      const show = (t, type) => { msg.textContent = t; msg.className = "form-msg show " + type; };
+      const hide = () => msg.className = "form-msg";
+
+      // Only allow redirecting to local pages
+      const next = new URLSearchParams(location.search).get("next");
+      const safeNext = next && /^[a-z]+\.html$/i.test(next) ? next : null;
+
+      function switchTab(name) {
+        hide();
+        document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+        document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === name));
+      }
+      document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
+      document.querySelectorAll("[data-switch]").forEach(a => a.addEventListener("click", ev => { ev.preventDefault(); switchTab(a.dataset.switch); }));
+      if (location.hash === "#register") switchTab("register");
+      $("r-role").addEventListener("change", () => { $("company-field").hidden = $("r-role").value !== "employer"; });
+
+      function done() { safeNext ? location.href = safeNext : location.reload(); }
+
+      $("login").addEventListener("submit", async ev => {
+        ev.preventDefault(); hide();
+        if (!$("l-email").value || !$("l-pass").value) return show("Enter your email and password.", "error");
+        try { await Auth.login($("l-email").value, $("l-pass").value); done(); }
+        catch (err) { show(err.message, "error"); }
+      });
+
+      $("register").addEventListener("submit", async ev => {
+        ev.preventDefault(); hide();
+        if (!$("r-name").value.trim()) return show("Please enter your full name.", "error");
+        if (!/^\S+@\S+\.\S+$/.test($("r-email").value)) return show("Please enter a valid email address.", "error");
+        if ($("r-pass").value.length < 8) return show("Password must be at least 8 characters.", "error");
+        if ($("r-pass").value !== $("r-pass2").value) return show("Passwords do not match.", "error");
+        const btn = $("register").querySelector("button[type=submit]");
+        btn.disabled = true;
+        try {
+          const res = await Auth.register({ name: $("r-name").value, email: $("r-email").value, phone: $("r-phone").value, role: $("r-role").value, company: $("r-company").value, password: $("r-pass").value });
+          if (res.needsConfirmation) {
+            $("register").reset();
+            $("company-field").hidden = true;
+            show("Almost done! We've sent a confirmation link to your email address. Click it, then log in.", "success");
+            return;
+          }
+          done();
+        } catch (err) { show(err.message, "error"); }
+        finally { btn.disabled = false; }
+      });
+
+      // Dashboard (wait for the real session before deciding what to show)
+      await Auth.ready;
+      const user = Auth.current();
+      if (user) {
+        $("dash-view").hidden = false;
+        $("welcome").textContent = "Welcome, " + user.name.split(" ")[0];
+        $("who").textContent = { admin: "Administrator account", employer: "Employer account" }[user.role] || "Candidate account";
+
+        if (Auth.isAdmin()) {
+          $("admin-panel").hidden = false;
+          $("apps-card").hidden = true; // admins manage applications from the dashboard
+        }
+        if (!Auth.isAdmin()) {
+          try {
+            const apps = await Auth.applications(user.id);
+            $("apps").innerHTML = apps.length
+              ? apps.map(a => `<div class="dashboard-item"><strong>${e(a.title)}</strong><span style="color:var(--muted)">${e(a.location)} &middot; ${new Date(a.date).toLocaleDateString()} &middot; <span class="badge warn">${e(a.status)}</span></span></div>`).join("")
+              : `<p style="color:var(--muted)">You haven't applied for any vacancies yet.</p>`;
+          } catch (err) {
+            $("apps").innerHTML = `<p style="color:var(--muted)">${e(err.message)}</p>`;
+          }
+        }
+        $("details").innerHTML = `
+          ${user.company ? `<div class="dashboard-item"><span>Company</span><strong>${e(user.company)}</strong></div>` : ""}
+          <div class="dashboard-item"><span>Name</span><strong>${e(user.name)}</strong></div>
+          <div class="dashboard-item"><span>Email</span><strong>${e(user.email)}</strong></div>
+          <div class="dashboard-item"><span>Phone</span><strong>${e(user.phone || "-")}</strong></div>`;
+        $("pw-card").hidden = false;
+        $("pw-form").addEventListener("submit", async ev => {
+          ev.preventDefault();
+          const pm = $("pw-msg"), say = (t, c) => { pm.textContent = t; pm.className = "form-msg show " + c; };
+          if ($("pw-new").value.length < 8) return say("Password must be at least 8 characters.", "error");
+          if ($("pw-new").value !== $("pw-new2").value) return say("Passwords do not match.", "error");
+          const btn = ev.target.querySelector("button[type=submit]");
+          btn.disabled = true;
+          try { await Auth.changePassword($("pw-new").value); ev.target.reset(); say("Password updated.", "success"); }
+          catch (err) { say(err.message, "error"); }
+          finally { btn.disabled = false; }
+        });
+        $("logout").addEventListener("click", async () => { await Auth.logout(); location.href = "index.html"; });
+      } else {
+        $("auth-view").hidden = false;
+      }
+    });
+  </script>
+</body>
+</html>

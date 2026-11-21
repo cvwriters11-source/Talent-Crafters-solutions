@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contact Us | Talent Crafters</title>
+  <meta name="description" content="Get in touch with Talent Crafters about jobs, hiring or general enquiries.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main>
+    <section class="page-banner">
+      <div class="container">
+        <h1>Contact Us</h1>
+        <p>Looking for a job or looking to hire? Send us a message.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container contact-grid">
+        <div>
+          <h2 class="section-title">Get in touch</h2>
+          <p class="section-sub">Our consultants usually respond within one business day.</p>
+          <div class="contact-item"><div class="icon">&#9993;</div><div><h4>Email</h4><p id="c-email"></p></div></div>
+          <div class="contact-item"><div class="icon">&#9742;</div><div><h4>Phone</h4><p id="c-phone"></p></div></div>
+          <div class="contact-item"><div class="icon">&#128205;</div><div><h4>Address</h4><p id="c-address"></p></div></div>
+          <div class="contact-item"><div class="icon">&#128339;</div><div><h4>Office hours</h4><p id="c-hours"></p></div></div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:18px">Send us a message</h3>
+          <div id="msg" class="form-msg" role="alert"></div>
+          <form id="contact-form" novalidate>
+            <div class="row">
+              <div class="field"><label for="name">Full name</label><input id="name" required autocomplete="name"></div>
+              <div class="field"><label for="email">Email</label><input id="email" type="email" required autocomplete="email"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label for="phone">Phone (optional)</label><input id="phone" type="tel" autocomplete="tel"></div>
+              <div class="field">
+                <label for="topic">I am a...</label>
+                <select id="topic">
+                  <option>Job seeker</option>
+                  <option>Employer looking to hire</option>
+                  <option>Other enquiry</option>
+                </select>
+              </div>
+            </div>
+            <div class="field"><label for="message">Message</label><textarea id="message" required></textarea></div>
+            <button class="btn btn-primary" type="submit">Send message</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const $ = id => document.getElementById(id);
+      $("c-email").innerHTML = `<a href="mailto:${SITE.email}">${SITE.email}</a>`;
+      $("c-phone").textContent = SITE.phone;
+      $("c-address").textContent = SITE.address;
+      $("c-hours").textContent = SITE.hours;
+
+      Auth.ready.then(() => {
+        const user = Auth.current();
+        if (user) { $("name").value = user.name; $("email").value = user.email; $("phone").value = user.phone || ""; }
+      });
+
+      $("contact-form").addEventListener("submit", async ev => {
+        ev.preventDefault();
+        const form = ev.target, btn = form.querySelector("button[type=submit]");
+        const msg = $("msg");
+        const show = (text, type) => { msg.textContent = text; msg.className = "form-msg show " + type; };
+        if (!$("name").value.trim() || !$("message").value.trim()) return show("Please fill in your name and message.", "error");
+        if (!/^\S+@\S+\.\S+$/.test($("email").value)) return show("Please enter a valid email address.", "error");
+
+        btn.disabled = true; btn.textContent = "Sending...";
+        try {
+          await Auth.addMessage({ name: $("name").value.trim(), email: $("email").value.trim(), phone: $("phone").value.trim(), topic: $("topic").value, message: $("message").value.trim() });
+          show("Thank you! Your message has been received. We'll be in touch shortly.", "success");
+          form.reset();
+        } catch (err) {
+          show(err.message, "error");
+        } finally {
+          btn.disabled = false; btn.textContent = "Send message";
+        }
+      });    });
+  </script>
+</body>
+</html>

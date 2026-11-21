@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Talent Crafters | Recruitment Solutions</title>
+  <meta name="description" content="Talent Crafters connects skilled candidates with great employers. Browse vacancies, register and apply today.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main>
+    <section class="hero" aria-roledescription="carousel" aria-label="Talent Crafters in pictures">
+      <div class="hero-slides" aria-live="off">
+        <img class="hero-slide active" src="images/hero-interview.jpg" alt="Two professionals shaking hands after an interview" width="1024" height="576" fetchpriority="high">
+        <img class="hero-slide" src="images/hero-team.jpg" alt="A diverse team collaborating around a table" width="1024" height="576" loading="lazy">
+        <img class="hero-slide" src="images/hero-cv.jpg" alt="A candidate preparing her CV on a laptop" width="1024" height="576" loading="lazy">
+        <img class="hero-slide" src="images/hero-success.jpg" alt="Confident professionals walking through a modern office lobby" width="1024" height="576" loading="lazy">
+      </div>
+      <div class="hero-controls" role="group" aria-label="Slideshow controls">
+        <button type="button" class="hero-arrow" data-dir="-1" aria-label="Previous picture">&#8249;</button>
+        <div class="hero-dots"></div>
+        <button type="button" class="hero-arrow" data-dir="1" aria-label="Next picture">&#8250;</button>
+        <button type="button" class="hero-pause" aria-label="Pause slideshow">Pause</button>
+      </div>
+      <div class="container hero-inner">
+        <p class="eyebrow">Recruitment Solutions</p>
+        <h1>We craft the right match between talent and opportunity.</h1>
+        <p>Whether you're looking for your next role or your next great hire, Talent Crafters makes recruitment simple, fast and personal.</p>
+        <div class="hero-actions">
+          <a href="vacancies.html" class="btn btn-accent">Browse Vacancies</a>
+          <a href="account.html" class="btn btn-outline">Register Your CV</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="container">
+        <div class="stats-grid">
+          <div class="stat"><strong>500+</strong><span>Placements made</span></div>
+          <div class="stat"><strong>120+</strong><span>Employer partners</span></div>
+          <div class="stat"><strong>10+</strong><span>Industries covered</span></div>
+          <div class="stat"><strong>48h</strong><span>Average shortlist time</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container center">
+        <h2 class="section-title">What we do</h2>
+        <p class="section-sub">End-to-end recruitment services for job seekers and employers.</p>
+        <div class="grid grid-3" style="text-align:left">
+          <div class="card"><div class="icon">&#128188;</div><h3>Permanent Placement</h3><p>We source, screen and shortlist candidates who fit your skills needs and your culture.</p></div>
+          <div class="card"><div class="icon">&#9201;</div><h3>Temporary &amp; Contract</h3><p>Flexible staffing for peak periods, projects and cover, with quick turnaround.</p></div>
+          <div class="card"><div class="icon">&#127919;</div><h3>Executive Search</h3><p>Confidential, targeted headhunting for senior and specialist roles.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt">
+      <div class="container">
+        <div class="center">
+          <h2 class="section-title">Latest vacancies</h2>
+          <p class="section-sub">Fresh opportunities added regularly. Register to apply in a few clicks.</p>
+        </div>
+        <div id="latest-jobs" class="grid grid-3"></div>
+        <p class="center" style="margin-top:32px"><a href="vacancies.html" class="btn btn-outline-dark">View all vacancies</a></p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container center">
+        <h2 class="section-title">How it works</h2>
+        <p class="section-sub">Getting hired shouldn't be complicated.</p>
+        <div class="grid grid-3 steps" style="text-align:left">
+          <div class="card step"><h3>Create your profile</h3><p>Register in a minute and tell us about your skills and what you're looking for.</p></div>
+          <div class="card step"><h3>Apply for roles</h3><p>Browse vacancies and apply directly. We'll keep you updated along the way.</p></div>
+          <div class="card step"><h3>Get placed</h3><p>We prepare you for interviews and negotiate on your behalf until you land the role.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="container">
+        <h2>Ready to take the next step?</h2>
+        <p>Join Talent Crafters today, or tell us about the people you need.</p>
+        <a href="account.html" class="btn btn-accent">Register Now</a>
+        <a href="contact.html" class="btn btn-outline" style="margin-left:8px">Hire Talent</a>
+      </div>
+    </section>
+  </main>
+
+  <div id="site-footer"></div>
+
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/vacancies.js"></script>
+  <script src="js/slider.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const box = document.getElementById("latest-jobs");
+      box.innerHTML = `<p class="empty" style="grid-column:1/-1">Loading vacancies...</p>`;
+      try {
+        const latest = (await loadVacancies()).slice(0, 3); // already newest first
+        box.innerHTML = latest.length
+          ? latest.map(jobCardHTML).join("")
+          : `<p class="empty" style="grid-column:1/-1">No vacancies are open right now. Please check back soon.</p>`;
+        bindJobCards(box);
+      } catch (err) {
+        box.innerHTML = `<p class="empty" style="grid-column:1/-1">Vacancies could not be loaded. Please refresh the page.</p>`;
+      }
+    });
+  </script>
+</body>
+</html>
