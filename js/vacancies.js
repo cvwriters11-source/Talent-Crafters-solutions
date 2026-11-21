@@ -75,28 +75,7 @@ async function openJobModal(id) {
     try { applied = (await Auth.applications(user.id)).some(a => a.jobId === id); } catch { /* shown as not applied */ }
   }
 
-  // The Apply button is always shown, but only logged-in job seekers can submit (also enforced by the database).
-  let action;
-  if (!user) action = `
-    <a class="btn btn-primary" href="account.html?next=vacancies.html">Apply now</a>
-    <p class="hint" style="margin-top:10px">Job seekers need an account to apply. <a href="account.html?next=vacancies.html">Log in</a> or <a href="account.html?next=vacancies.html#register">register free</a>.</p>`;
-  else if (user.role !== "candidate") action = `
-    <button class="btn btn-primary" disabled>Apply now</button>
-    <p class="hint" style="margin-top:10px">Only job-seeker accounts can apply for vacancies.</p>`;
-  else if (user.approval !== "approved") action = `
-    <button class="btn btn-primary" disabled>Apply now</button>
-    <p class="hint" style="margin-top:10px">${user.approval === "rejected" ? "Your account was not approved, so you can't apply." : "Your account is awaiting approval. You can apply as soon as our team approves it."}</p>`;
-  else if (applied) action = `<button class="btn btn-primary" disabled>Already applied</button>`;
-  else if (!user.cvPath) action = `
-    <a class="btn btn-primary" href="account.html">Upload your CV to apply</a>
-    <p class="hint" style="margin-top:10px">Add your CV on your account page first, then come back and apply.</p>`;
-  else action = `
-    <div class="field">
-      <label for="cover-letter">Cover letter <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
-      <textarea id="cover-letter" maxlength="4000" rows="5" placeholder="Tell us briefly why you are a good fit for this role."></textarea>
-      <p class="hint">Your CV (${e(user.cvName || "on file")}) is sent with your application.</p>
-    </div>
-    <button class="btn btn-primary" id="apply-btn">Submit application</button>`;
+  const action = applyBlock(job, user, applied).html;
 
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop open";
@@ -122,13 +101,57 @@ async function openJobModal(id) {
   backdrop.addEventListener("click", ev => { if (ev.target === backdrop) close(); });
   backdrop.querySelector(".modal-close").addEventListener("click", close);
 
-  const applyBtn = backdrop.querySelector("#apply-btn");
-  if (applyBtn) applyBtn.addEventListener("click", async () => {
+  bindApply(backdrop, job, close);
+}
+
+// What a visitor can do about applying, as { html, top } where `top` describes the main Apply button
+// ({label, href} to navigate, {label, scroll:true} to jump to the form/explanation, {label, disabled:true}).
+// Only logged-in, approved job seekers with a CV can submit (also enforced by the database).
+function applyBlock(job, user, applied) {
+  const e = escapeHTML;
+  const login = "account.html?next=vacancies.html";
+  if (!user) return {
+    top: { label: "Apply Now", href: login },
+    html: `<a class="btn btn-primary" href="${login}">Apply now</a>
+    <p class="hint" style="margin-top:10px">Job seekers need an account to apply. <a href="${login}">Log in</a> or <a href="${login}#register">register free</a>.</p>`
+  };
+  if (user.role !== "candidate") return {
+    top: { label: "Apply Now", scroll: true },
+    html: `<button class="btn btn-primary" disabled>Apply now</button>
+    <p class="hint" style="margin-top:10px">Only job-seeker accounts can apply for vacancies.</p>`
+  };
+  if (user.approval !== "approved") return {
+    top: { label: "Apply Now", scroll: true },
+    html: `<button class="btn btn-primary" disabled>Apply now</button>
+    <p class="hint" style="margin-top:10px">${user.approval === "rejected" ? "Your account was not approved, so you can't apply." : "Your account is awaiting approval. You can apply as soon as our team approves it."}</p>`
+  };
+  if (applied) return { top: { label: "Applied", disabled: true }, html: `<button class="btn btn-primary" disabled>Already applied</button>` };
+  if (!user.cvPath) return {
+    top: { label: "Apply Now", href: "account.html" },
+    html: `<a class="btn btn-primary" href="account.html">Upload your CV to apply</a>
+    <p class="hint" style="margin-top:10px">Add your CV on your account page first, then come back and apply.</p>`
+  };
+  return {
+    top: { label: "Apply Now", scroll: true },
+    html: `<div class="field">
+      <label for="cover-letter">Cover letter <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <textarea id="cover-letter" maxlength="4000" rows="5" placeholder="Tell us briefly why you are a good fit for this role."></textarea>
+      <p class="hint">Your CV (${e(user.cvName || "on file")}) is sent with your application.</p>
+    </div>
+    <button class="btn btn-primary" id="apply-btn">Submit application</button>`
+  };
+}
+
+// Wires the "Submit application" button inside `root`. `done(ok)` runs after a successful submit.
+function bindApply(root, job, done) {
+  const applyBtn = root.querySelector("#apply-btn");
+  if (!applyBtn) return;
+  applyBtn.addEventListener("click", async () => {
     applyBtn.disabled = true;
     try {
-      const letter = backdrop.querySelector("#cover-letter");
+      const letter = root.querySelector("#cover-letter");
       const ok = await Auth.apply(job, letter ? letter.value : "");
-      close();
+      if (done) done(ok);
       toast(ok ? "Application submitted for " + job.title : "You've already applied for " + job.title);
     } catch (err) {
       applyBtn.disabled = false;
