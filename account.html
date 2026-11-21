@@ -296,6 +296,11 @@
         if (!/^\S+@\S+\.\S+$/.test($("r-email").value)) return show("Please enter a valid email address.", "error");
         if ($("r-pass").value.length < 8) return show("Password must be at least 8 characters.", "error");
         if ($("r-pass").value !== $("r-pass2").value) return show("Passwords do not match.", "error");
+        // Registration is unlocked only after the visitor clicks the Google review button on the pop-up.
+        if (typeof hasLeftReview === "function" && !hasLeftReview()) {
+          if (typeof requireReviewPopup === "function") requireReviewPopup();
+          return show("Please leave us a quick review first (use the bouncing button), then come back and create your account.", "error");
+        }
         const btn = $("register").querySelector("button[type=submit]");
         btn.disabled = true;
         try {

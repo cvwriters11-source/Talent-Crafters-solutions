@@ -9,8 +9,8 @@ create table public.site_popup (
   message text not null default '' check (char_length(message) <= 600),
   button_text text not null default 'Leave us a review' check (char_length(button_text) between 1 and 40),
   link_url text not null default '' check (link_url = '' or link_url ~* '^https://[^[:space:]]+$'),
-  delay_seconds integer not null default 5 check (delay_seconds between 0 and 120),
-  repeat_days integer not null default 7 check (repeat_days between 0 and 365),
+  delay_seconds integer not null default 3 check (delay_seconds between 0 and 120),
+  repeat_days integer not null default 0 check (repeat_days between 0 and 365),
   version integer not null default 1,
   updated_at timestamptz not null default now()
 );

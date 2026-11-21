@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     body.innerHTML = `
       <div class="card" style="max-width:640px">
         <h3 style="color:var(--navy);margin-bottom:6px">Welcome / review pop-up</h3>
-        <p class="hint" style="margin-bottom:16px">Shown to visitors on the public pages (Home, About, Vacancies, Contact). Not shown on Admin, Login or Unsubscribe. Saving always makes it appear again for people who already closed it.</p>
+        <p class="hint" style="margin-bottom:16px">Appears after a few seconds for visitors who are not logged in. It keeps coming back until they click the review button. Registration is blocked until then. Logged-in (registered) people never see it.</p>
         <div id="pop-msg" class="form-msg" role="alert"></div>
         <form id="pop-form" novalidate>
           <label class="fchip fchip-toggle" style="margin-bottom:16px"><input type="checkbox" id="pop-on" ${p.enabled ? "checked" : ""}><span>Show this pop-up on the website</span></label>
@@ -135,12 +135,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             <div class="field"><label for="pop-btn">Button text</label><input id="pop-btn" maxlength="40" value="${e(p.buttonText)}" required></div>
             <div class="field"><label for="pop-link">Button link (must start with https://)</label><input id="pop-link" type="url" maxlength="300" value="${e(p.link)}" placeholder="https://g.page/r/..." required></div>
           </div>
-          <div class="row">
-            <div class="field"><label for="pop-delay">Show after (seconds)</label><input id="pop-delay" type="number" min="0" max="120" value="${e(p.delay)}"></div>
-            <div class="field"><label for="pop-repeat">Ask again after (days)</label>
-              <input id="pop-repeat" type="number" min="0" max="365" value="${e(p.repeatDays)}">
-              <p class="hint">0 = once per visit. Someone who clicks the review button is not asked again for a year.</p>
-            </div>
+          <div class="field"><label for="pop-delay">Show after (seconds)</label>
+            <input id="pop-delay" type="number" min="0" max="120" value="${e(p.delay)}" style="max-width:140px">
+            <p class="hint">Also used as the wait before it pops open again if they close it without reviewing. Recommended: 3.</p>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
             <button class="btn btn-primary" type="submit">Save pop-up</button>
@@ -158,7 +155,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       buttonText: $("pop-btn").value.trim() || "Leave us a review",
       link: $("pop-link").value.trim(),
       delay: Math.max(0, Math.min(120, Number($("pop-delay").value) || 0)),
-      repeatDays: Math.max(0, Math.min(365, Number($("pop-repeat").value) || 0))
+      repeatDays: 0
     });
     $("pop-preview").addEventListener("click", () => {
       const v = read();

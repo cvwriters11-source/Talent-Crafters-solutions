@@ -131,13 +131,26 @@
     });
   }
 
-  /* ---------- Welcome / review pop-up (text, link and timing are controlled by the admin) ---------- */
-  const POPUP_KEY = "tc_popup";
-  const NO_POPUP_PAGES = ["admin.html", "account.html", "unsubscribe.html"];
+  /* ---------- Welcome / review pop-up (admin controls the text and link) ----------
+   * Rules: appears after a short delay; keeps coming back until the visitor clicks the review
+   * button; registration is blocked until then; once they have an account (are logged in) it
+   * never shows again. */
+  const REVIEWED_KEY = "tc_reviewed";
+  const NO_POPUP_PAGES = ["admin.html", "unsubscribe.html"];
+  let popupCfg = null;
+  let reopenTimer = null;
 
-  // Shows the pop-up. `preview` (admin) never remembers anything.
+  window.hasLeftReview = function () {
+    try { return localStorage.getItem(REVIEWED_KEY) === "1"; } catch { return false; }
+  };
+  window.markLeftReview = function () {
+    try { localStorage.setItem(REVIEWED_KEY, "1"); } catch { /* private mode */ }
+  };
+
+  // Shows the pop-up. `preview` (admin) never marks a review and never reopens.
   window.showSitePopup = function (p, { preview = false } = {}) {
     if (document.querySelector(".tc-popup-backdrop")) return;
+    clearTimeout(reopenTimer);
     const e = escapeHTML;
     const link = /^https:\/\/\S+$/i.test(p.link || "") ? p.link : "";
     const wrap = document.createElement("div");
@@ -150,44 +163,61 @@
         <h2 id="tc-popup-title">${e(p.title)}</h2>
         <p>${e(p.message)}</p>
         ${link ? `<a class="tc-popup-btn" href="${e(link)}" target="_blank" rel="noopener noreferrer">${e(p.buttonText)}</a>` : ""}
-        <button type="button" class="tc-popup-later">Maybe later</button>
+        <button type="button" class="tc-popup-later">Close</button>
       </div>`;
     document.body.appendChild(wrap);
 
-    const remember = days => {
+    const dismiss = reviewed => {
+      wrap.remove();
+      document.removeEventListener("keydown", onKey);
       if (preview) return;
-      try {
-        if (days > 0) localStorage.setItem(POPUP_KEY, JSON.stringify({ v: p.version, until: Date.now() + days * 864e5 }));
-        else sessionStorage.setItem(POPUP_KEY, String(p.version)); // 0 days = once per visit
-      } catch { /* private mode: it may show again, which is harmless */ }
+      if (reviewed) {
+        markLeftReview();
+        clearTimeout(reopenTimer);
+        return;
+      }
+      // Keep asking: reopen after a few seconds until they click the review button.
+      const wait = Math.max(3, Number(p.delay) || 3) * 1000;
+      reopenTimer = setTimeout(() => {
+        if (!hasLeftReview() && !(Auth.current && Auth.current()) && popupCfg)
+          showSitePopup(popupCfg);
+      }, wait);
     };
-    const close = days => { remember(days); wrap.remove(); document.removeEventListener("keydown", onKey); };
-    const onKey = ev => { if (ev.key === "Escape") close(p.repeatDays); };
+    const onKey = ev => { if (ev.key === "Escape") dismiss(false); };
     document.addEventListener("keydown", onKey);
-    wrap.addEventListener("click", ev => { if (ev.target === wrap) close(p.repeatDays); });
-    wrap.querySelector(".tc-popup-close").addEventListener("click", () => close(p.repeatDays));
-    wrap.querySelector(".tc-popup-later").addEventListener("click", () => close(p.repeatDays));
+    wrap.addEventListener("click", ev => { if (ev.target === wrap) dismiss(false); });
+    wrap.querySelector(".tc-popup-close").addEventListener("click", () => dismiss(false));
+    wrap.querySelector(".tc-popup-later").addEventListener("click", () => dismiss(false));
     const btn = wrap.querySelector(".tc-popup-btn");
-    // Someone who went to leave a review is not asked again for a year (unless the admin changes the pop-up).
-    if (btn) { btn.addEventListener("click", () => setTimeout(() => close(365), 0)); btn.focus(); }
+    if (btn) { btn.addEventListener("click", () => setTimeout(() => dismiss(true), 0)); btn.focus(); }
     else wrap.querySelector(".tc-popup-later").focus();
   };
 
-  function popupSuppressed(p) {
-    try {
-      const s = JSON.parse(localStorage.getItem(POPUP_KEY) || "null");
-      if (s && s.v === p.version && s.until > Date.now()) return true;
-      if (sessionStorage.getItem(POPUP_KEY) === String(p.version)) return true;
-    } catch { /* ignore */ }
-    return false;
-  }
+  // Force the pop-up open (used when someone tries to register without reviewing).
+  window.requireReviewPopup = function () {
+    if (hasLeftReview()) return false;
+    if (popupCfg) { showSitePopup(popupCfg); return true; }
+    if (!window.Popup) return true;
+    Popup.get().then(p => {
+      if (p && p.enabled) { popupCfg = p; showSitePopup(p); }
+    }).catch(() => {});
+    return true;
+  };
 
   function startPopup() {
     if (NO_POPUP_PAGES.includes(page()) || !window.Popup) return;
-    Popup.get().then(p => {
-      if (!p || !p.enabled || !p.title.trim() || popupSuppressed(p)) return;
-      setTimeout(() => { if (!popupSuppressed(p)) showSitePopup(p); }, p.delay * 1000);
-    }).catch(() => { /* the pop-up is optional; never break the page */ });
+    Auth.ready.then(() => {
+      if (Auth.current()) return; // registered / logged-in visitors are never asked again
+      if (hasLeftReview()) return;
+      Popup.get().then(p => {
+        if (!p || !p.enabled || !p.title.trim()) return;
+        popupCfg = p;
+        const wait = Math.max(0, Number(p.delay) || 3) * 1000;
+        setTimeout(() => {
+          if (!hasLeftReview() && !Auth.current()) showSitePopup(p);
+        }, wait);
+      }).catch(() => { /* the pop-up is optional; never break the page */ });
+    });
   }
 
   document.addEventListener("DOMContentLoaded", () => {
