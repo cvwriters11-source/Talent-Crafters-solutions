@@ -25,6 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     register: ["Registered", "info"], login: ["Login", "ok"], apply: ["Applied for job", "info"],
     contact_message: ["Contact message", ""], user_suspended: ["Account suspended", "bad"],
     user_reactivated: ["Account reactivated", "ok"], user_deleted: ["Account deleted", "bad"],
+    user_approved: ["Account approved", "ok"], user_rejected: ["Account rejected", "bad"], user_approval_reset: ["Approval revoked", "warn"],
     notes_updated: ["Notes updated", "warn"], application_status: ["Application status", "warn"],
     vacancy_created: ["Vacancy created", "info"], vacancy_updated: ["Vacancy updated", "warn"],
     vacancy_deleted: ["Vacancy deleted", "bad"], export: ["Data export", "warn"],
@@ -35,6 +36,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const fmt = iso => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "-";
   const actionBadge = a => { const [l, c] = ACTIONS[a] || [a, ""]; return `<span class="badge ${c}">${e(l)}</span>`; };
   const statusBadge = u => u.status === "suspended" ? `<span class="badge bad">Suspended</span>` : `<span class="badge ok">Active</span>`;
+  const approvalBadge = u => ({
+    pending: `<span class="badge warn">Pending approval</span>`,
+    rejected: `<span class="badge bad">Rejected</span>`
+  })[u.approval] || `<span class="badge ok">Approved</span>`;
   const empty = t => `<p class="empty">${t}</p>`;
 
   /* ---------- Data (loaded once per render, then used synchronously) ---------- */
@@ -107,6 +112,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { users, apps, msgs, log, vacancies } = data;
     const today = new Date().toDateString();
     const cards = [
+      ["Awaiting approval", users.filter(u => u.role !== "admin" && u.approval === "pending").length],
       ["Candidates", users.filter(u => u.role === "candidate").length],
       ["Companies", users.filter(u => u.role === "employer").length],
       ["Applications", apps.length],
@@ -130,6 +136,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     body.innerHTML = `
       <div class="toolbar">
         <input type="search" id="q" placeholder="Search ${isCo ? "companies" : "candidates"}..." aria-label="Search">
+        <select id="ap" aria-label="Approval"><option value="">All approvals</option><option value="pending">Pending approval</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
         <select id="st" aria-label="Status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
         <span class="spacer"></span>
         <button class="btn btn-outline-dark btn-sm" id="export">Export CSV</button>
@@ -137,9 +144,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="table-wrap" id="tbl"></div>`;
 
     const filtered = () => {
-      const q = body.querySelector("#q").value.trim().toLowerCase(), st = body.querySelector("#st").value;
+      const q = body.querySelector("#q").value.trim().toLowerCase(), st = body.querySelector("#st").value, ap = body.querySelector("#ap").value;
       return data.users.filter(u => u.role === role
         && (!st || u.status === st)
+        && (!ap || u.approval === ap)
         && (!q || [u.name, u.email, u.phone, u.company].join(" ").toLowerCase().includes(q)));
     };
     const paint = () => {
@@ -147,24 +155,25 @@ document.addEventListener("DOMContentLoaded", async () => {
       body.querySelector("#tbl").innerHTML = list.length ? `
         <table class="data"><thead><tr>
           ${isCo ? "<th>Company</th><th>Contact person</th>" : "<th>Name</th>"}
-          <th>Email</th><th>Phone</th><th>Registered</th><th>Last login</th>${isCo ? "" : "<th>Applications</th>"}<th>Status</th><th></th>
+          <th>Email</th><th>Phone</th><th>Registered</th><th>Last login</th>${isCo ? "" : "<th>Applications</th>"}<th>Approval</th><th>Status</th><th></th>
         </tr></thead><tbody>
         ${list.map(u => `<tr>
           ${isCo ? `<td><strong>${e(u.company)}</strong></td><td>${e(u.name)}</td>` : `<td><strong>${e(u.name)}</strong></td>`}
           <td>${e(u.email)}</td><td>${e(u.phone || "-")}</td><td>${fmt(u.created)}</td><td>${fmt(u.lastLogin)}</td>
           ${isCo ? "" : `<td>${data.apps.filter(a => a.userId === u.id).length}</td>`}
-          <td>${statusBadge(u)}</td>
-          <td><button class="btn btn-primary btn-sm" data-view="${e(u.id)}">Manage</button></td>
+          <td>${approvalBadge(u)}</td><td>${statusBadge(u)}</td>
+          <td><button class="btn ${u.approval === "pending" ? "btn-accent" : "btn-primary"} btn-sm" data-view="${e(u.id)}">${u.approval === "pending" ? "Review" : "Manage"}</button></td>
         </tr>`).join("")}
         </tbody></table>` : empty(`No ${isCo ? "companies" : "candidates"} found.`);
     };
     body.querySelector("#q").addEventListener("input", paint);
     body.querySelector("#st").addEventListener("input", paint);
+    body.querySelector("#ap").addEventListener("input", paint);
     body.querySelector("#tbl").addEventListener("click", ev => { const b = ev.target.closest("[data-view]"); if (b) openUser(b.dataset.view); });
     body.querySelector("#export").addEventListener("click", () =>
       downloadCSV(isCo ? "companies" : "candidates",
-        [isCo ? "Company" : "Name", ...(isCo ? ["Contact person"] : []), "Email", "Phone", "Registered", "Last login", ...(isCo ? [] : ["Applications"]), "Status", "Notes"],
-        filtered().map(u => [isCo ? u.company : u.name, ...(isCo ? [u.name] : []), u.email, u.phone, u.created, u.lastLogin, ...(isCo ? [] : [data.apps.filter(a => a.userId === u.id).length]), u.status, u.notes])));
+        [isCo ? "Company" : "Name", ...(isCo ? ["Contact person"] : []), "Email", "Phone", "Registered", "Last login", ...(isCo ? [] : ["Applications"]), "Approval", "Status", "Notes"],
+        filtered().map(u => [isCo ? u.company : u.name, ...(isCo ? [u.name] : []), u.email, u.phone, u.created, u.lastLogin, ...(isCo ? [] : [data.apps.filter(a => a.userId === u.id).length]), u.approval, u.status, u.notes])));
     paint();
   }
 
@@ -177,8 +186,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const suspended = u.status === "suspended";
 
     const m = openModal(`
-      <div style="display:flex;gap:8px;margin-bottom:8px"><span class="badge info">${isCo ? "Company" : "Candidate"}</span>${statusBadge(u)}</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap"><span class="badge info">${isCo ? "Company" : "Candidate"}</span>${approvalBadge(u)}${statusBadge(u)}</div>
       <h2>${e(isCo ? u.company : u.name)}</h2>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 4px">
+        ${u.approval !== "approved" ? `<button class="btn btn-primary btn-sm" id="approve">Approve account</button>` : `<button class="btn btn-outline-dark btn-sm" id="unapprove">Revoke approval</button>`}
+        ${u.approval === "pending" ? `<button class="btn btn-accent btn-sm" id="reject">Reject</button>` : ""}
+      </div>
       <dl class="detail-grid">
         ${isCo ? `<dt>Contact person</dt><dd>${e(u.name)}</dd>` : ""}
         <dt>Email</dt><dd>${e(u.email)}</dd>
@@ -205,6 +218,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
     const $ = s => m.el.querySelector(s);
     $("#save-notes").addEventListener("click", ev => act(ev.target, () => Auth.setNotes(id, $("#notes").value), "Notes saved"));
+    const on = (sel, fn) => { const b = $(sel); if (b) b.addEventListener("click", fn); };
+    on("#approve", ev => act(ev.target, () => Auth.setApproval(id, "approved"), "Account approved"));
+    on("#unapprove", ev => {
+      if (!confirm("Revoke approval? They will not be able to apply for vacancies until approved again.")) return;
+      act(ev.target, () => Auth.setApproval(id, "pending"), "Approval revoked");
+    });
+    on("#reject", ev => {
+      if (!confirm("Reject this account? They will see that it was not approved and cannot apply.")) return;
+      act(ev.target, () => Auth.setApproval(id, "rejected"), "Account rejected");
+    });
     $("#toggle").addEventListener("click", ev => {
       if (!suspended && !confirm("Suspend this account? They will be unable to apply or manage their account until reactivated.")) return;
       act(ev.target, () => Auth.setStatus(id, suspended ? "active" : "suspended"), suspended ? "Account reactivated" : "Account suspended");

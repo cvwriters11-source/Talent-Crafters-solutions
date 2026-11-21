@@ -32,6 +32,9 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: me } = await admin.from("profiles").select("role,status,name,email").eq("id", user.id).maybeSingle();
     if (!me || me.role !== "admin" || me.status !== "active") return json(403, { error: "Admin access required" });
+    // The session must also have passed the email login code (when that requirement is switched on).
+    const { data: verified } = await caller.rpc("is_verified_admin");
+    if (verified !== true) return json(403, { error: "Please log in again and enter your email code." });
 
     // 3. Validate the target
     const body = await req.json().catch(() => ({}));

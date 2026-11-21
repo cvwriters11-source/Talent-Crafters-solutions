@@ -25,8 +25,23 @@
 
   const mapProfile = p => ({
     id: p.id, name: p.name, email: p.email, phone: p.phone, role: p.role, company: p.company,
-    status: p.status, notes: p.notes, created: p.created_at, lastLogin: p.last_login
+    status: p.status, approval: p.approval, notes: p.notes, created: p.created_at, lastLogin: p.last_login
   });
+
+  /* ----- Email login code ----------------------------------------------------------------
+   * After the password is accepted the site emails a 6-digit code (Supabase Auth). Entering it creates
+   * a session that the database recognises as verified. The database is what enforces this
+   * (see private.session_verified()); the checks below just keep the page honest. */
+  const codeRequired = async () => {
+    try { const { data } = await sb.rpc("login_code_required"); return data === true; } catch { return false; }
+  };
+  const sessionHasCode = session => {
+    try {
+      const payload = JSON.parse(atob(session.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      return (payload.amr || []).some(a => a.method !== "password" && a.method !== "token_refresh");
+    } catch { return false; }
+  };
+  const SUSPENDED = () => "This account has been suspended. Please contact " + SITE.email + ".";
   const mapApp = a => ({
     id: a.id, userId: a.user_id, jobId: a.job_id, status: a.status, date: a.created_at,
     title: a.vacancies ? a.vacancies.title : "(removed vacancy)", location: a.vacancies ? a.vacancies.location : ""
@@ -43,6 +58,12 @@
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) { user = null; localStorage.removeItem(HINT); return; }
+      // A password-only session is not enough once login codes are required: treat it as logged out.
+      if (!sessionHasCode(session) && await codeRequired()) {
+        await sb.auth.signOut({ scope: "local" });
+        user = null; localStorage.removeItem(HINT);
+        return;
+      }
       const { data: p } = await sb.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
       if (!p || p.status === "suspended") {
         await sb.auth.signOut();
@@ -78,11 +99,41 @@
       return { needsConfirmation: false };
     },
 
+    // Step 1: check the password. Returns { needsCode: true, email } when an emailed code is still required,
+    // otherwise { user }. Step 2 is verifyCode().
     async login(email, password) {
-      const { error } = await sb.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+      email = email.trim().toLowerCase();
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) fail(error, "Could not log in. Please try again.");
+      const { data: p } = await sb.from("profiles").select("status").eq("id", data.user.id).maybeSingle();
+      if (!p || p.status === "suspended") {
+        await sb.auth.signOut();
+        throw new Error(SUSPENDED());
+      }
+      if (await codeRequired()) {
+        // Drop the password-only session; the emailed code creates the real one.
+        await sb.auth.signOut({ scope: "local" });
+        user = null; localStorage.removeItem(HINT);
+        await this.sendLoginCode(email);
+        return { needsCode: true, email };
+      }
       await loadSession();
-      if (!user) throw new Error("This account has been suspended. Please contact " + SITE.email + ".");
+      if (!user) throw new Error(SUSPENDED());
+      return { user };
+    },
+
+    async sendLoginCode(email) {
+      const { error } = await sb.auth.signInWithOtp({ email: email.trim().toLowerCase(), options: { shouldCreateUser: false } });
+      if (error) fail(error, "We couldn't send your login code. Please try again in a minute, or contact " + SITE.email + ".");
+    },
+
+    async verifyCode(email, code) {
+      const token = String(code || "").replace(/\s+/g, "");
+      if (!/^\d{6,8}$/.test(token)) throw new Error("Enter the 6-digit code from your email.");
+      const { error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token, type: "email" });
+      if (error) fail(error, "That code is incorrect or has expired. Check your latest email, or request a new code.");
+      await loadSession();
+      if (!user) throw new Error(SUSPENDED());
       return user;
     },
 
@@ -121,6 +172,7 @@
       const { error } = await sb.from("applications").insert({ job_id: job.id });
       if (error) {
         if (error.code === "23505") return false;
+        if (user && user.approval !== "approved") throw new Error("Your account is still waiting for approval. We'll let you know once it's approved, then you can apply.");
         fail(error, "Could not submit your application.");
       }
       return true;
@@ -171,6 +223,7 @@
     },
     setStatus(id, status) { return this._updateProfile(id, { status }); },
     setNotes(id, notes) { return this._updateProfile(id, { notes }); },
+    setApproval(id, approval) { return this._updateProfile(id, { approval }); },
 
     async removeUser(id) {
       const { data, error } = await sb.functions.invoke("admin-delete-user", { body: { userId: id } });

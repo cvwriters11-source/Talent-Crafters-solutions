@@ -28,6 +28,16 @@
           <p class="hint center" style="margin-top:14px">No account? <a href="#" data-switch="register">Register here</a></p>
         </form>
 
+        <form id="codeform" class="panel" novalidate>
+          <h3 style="color:var(--navy);margin-bottom:6px">Enter your login code</h3>
+          <p class="hint" id="code-sent" style="margin-bottom:16px"></p>
+          <div class="field"><label for="c-code">6-digit code</label>
+            <input id="c-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456" style="letter-spacing:6px;font-size:1.4rem;text-align:center"></div>
+          <button class="btn btn-primary" style="width:100%" type="submit">Verify and log in</button>
+          <p class="hint center" style="margin-top:14px"><a href="#" id="resend">Resend code</a> &middot; <a href="#" data-switch="login">Use a different account</a></p>
+          <p class="hint center">Can't find it? Check your spam folder. The code expires after a short time.</p>
+        </form>
+
         <form id="forgot" class="panel" novalidate>
           <h3 style="color:var(--navy);margin-bottom:6px">Forgot your password?</h3>
           <p class="hint" style="margin-bottom:16px">Enter the email you registered with and we'll send you a link to choose a new password.</p>
@@ -82,6 +92,10 @@
           <p style="color:var(--muted)" id="who"></p>
         </div>
         <button class="btn btn-outline-dark" id="logout">Logout</button>
+      </div>
+      <div id="approval-card" class="card" hidden style="margin-bottom:24px;border-left:4px solid var(--gold)">
+        <h3 id="approval-title" style="margin-bottom:6px"></h3>
+        <p id="approval-text" style="color:var(--muted)"></p>
       </div>
       <div id="pw-card" class="card" hidden style="margin-bottom:24px">
         <h3 style="margin-bottom:12px">Change password</h3>
@@ -141,7 +155,7 @@
 
       function switchTab(name) {
         hide();
-        document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name || (name === "forgot" && t.dataset.tab === "login")));
+        document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name || ((name === "forgot" || name === "codeform") && t.dataset.tab === "login")));
         document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === name));
       }
       document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
@@ -154,7 +168,51 @@
       $("login").addEventListener("submit", async ev => {
         ev.preventDefault(); hide();
         if (!$("l-email").value || !$("l-pass").value) return show("Enter your email and password.", "error");
-        try { await Auth.login($("l-email").value, $("l-pass").value); done(); }
+        const btn = $("login").querySelector("button[type=submit]");
+        btn.disabled = true;
+        try {
+          const res = await Auth.login($("l-email").value, $("l-pass").value);
+          if (res.needsCode) return askForCode(res.email);
+          done();
+        } catch (err) { show(err.message, "error"); }
+        finally { btn.disabled = false; }
+      });
+
+      // Step 2 of login: the 6-digit code emailed after the password was accepted.
+      let codeEmail = "", cooldown = null;
+      function startCooldown(secs) {
+        const link = $("resend");
+        clearInterval(cooldown);
+        let left = secs;
+        link.dataset.wait = "1";
+        const tick = () => {
+          if (left <= 0) { clearInterval(cooldown); delete link.dataset.wait; link.textContent = "Resend code"; return; }
+          link.textContent = "Resend code (" + left-- + "s)";
+        };
+        tick(); cooldown = setInterval(tick, 1000);
+      }
+      function askForCode(email) {
+        codeEmail = email;
+        $("c-code").value = "";
+        $("code-sent").textContent = "We've emailed a 6-digit code to " + email.replace(/^(.).*(@.*)$/, "$1***$2") + ". Enter it below to finish logging in.";
+        switchTab("codeform");
+        show("Check your email for your login code.", "success");
+        startCooldown(60);
+        $("c-code").focus();
+      }
+      $("codeform").addEventListener("submit", async ev => {
+        ev.preventDefault(); hide();
+        const btn = $("codeform").querySelector("button[type=submit]");
+        btn.disabled = true;
+        try { await Auth.verifyCode(codeEmail, $("c-code").value); done(); }
+        catch (err) { show(err.message, "error"); }
+        finally { btn.disabled = false; }
+      });
+      $("resend").addEventListener("click", async ev => {
+        ev.preventDefault();
+        if (ev.target.dataset.wait) return;
+        hide();
+        try { await Auth.sendLoginCode(codeEmail); show("A new code is on its way. Use the latest email.", "success"); startCooldown(60); }
         catch (err) { show(err.message, "error"); }
       });
 
@@ -185,7 +243,7 @@
           if (res.needsConfirmation) {
             $("register").reset();
             $("company-field").hidden = true;
-            show("Almost done! We've sent a confirmation link to your email address. Click it, then log in.", "success");
+            show("Almost done! We've sent a confirmation link to your email address. Click it, then log in with the code we email you. Our team reviews every new account before you can apply for jobs.", "success");
             return;
           }
           done();
@@ -223,6 +281,14 @@
         $("welcome").textContent = "Welcome, " + user.name.split(" ")[0];
         $("who").textContent = { admin: "Administrator account", employer: "Employer account" }[user.role] || "Candidate account";
 
+        if (user.role !== "admin" && user.approval !== "approved") {
+          const rejected = user.approval === "rejected";
+          $("approval-title").textContent = rejected ? "Your account was not approved" : "Your account is awaiting approval";
+          $("approval-text").textContent = rejected
+            ? "We couldn't approve this account. If you think this is a mistake, please contact " + SITE.email + "."
+            : "Thanks for registering. Our team reviews every new account to keep Talent Crafters made up of real people. You'll be able to apply for vacancies as soon as you're approved.";
+          $("approval-card").hidden = false;
+        }
         if (Auth.isAdmin()) {
           $("admin-panel").hidden = false;
           $("apps-card").hidden = true; // admins manage applications from the dashboard

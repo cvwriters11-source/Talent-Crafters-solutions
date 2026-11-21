@@ -83,6 +83,9 @@ async function openJobModal(id) {
   else if (user.role !== "candidate") action = `
     <button class="btn btn-primary" disabled>Apply now</button>
     <p class="hint" style="margin-top:10px">Only job-seeker accounts can apply for vacancies.</p>`;
+  else if (user.approval !== "approved") action = `
+    <button class="btn btn-primary" disabled>Apply now</button>
+    <p class="hint" style="margin-top:10px">${user.approval === "rejected" ? "Your account was not approved, so you can't apply." : "Your account is awaiting approval. You can apply as soon as our team approves it."}</p>`;
   else if (applied) action = `<button class="btn btn-primary" disabled>Already applied</button>`;
   else action = `<button class="btn btn-primary" id="apply-btn">Apply now</button>`;
 
