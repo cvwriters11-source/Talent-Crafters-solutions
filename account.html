@@ -85,48 +85,71 @@
     </div>
 
     <!-- Logged-in view -->
-    <div id="dash-view" style="padding:56px 0" hidden>
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px">
-        <div>
-          <h1 style="color:var(--navy)" id="welcome"></h1>
-          <p style="color:var(--muted)" id="who"></p>
-        </div>
-        <button class="btn btn-outline-dark" id="logout">Logout</button>
-      </div>
-      <div id="approval-card" class="card" hidden style="margin-bottom:24px;border-left:4px solid var(--gold)">
-        <h3 id="approval-title" style="margin-bottom:6px"></h3>
-        <p id="approval-text" style="color:var(--muted)"></p>
-      </div>
-      <div id="pw-card" class="card" hidden style="margin-bottom:24px">
-        <h3 style="margin-bottom:12px">Change password</h3>
-        <div id="pw-msg" class="form-msg" role="alert"></div>
-        <form id="pw-form" novalidate>
-          <div class="row">
-            <div class="field"><label for="pw-new">New password</label><input id="pw-new" type="password" autocomplete="new-password"><p class="hint">At least 8 characters. A longer, unique passphrase is safer.</p></div>
-            <div class="field"><label for="pw-new2">Confirm new password</label><input id="pw-new2" type="password" autocomplete="new-password"></div>
-          </div>
-          <button class="btn btn-outline-dark btn-sm" type="submit">Update password</button>
-        </form>
-      </div>
-      <div id="admin-panel" hidden style="margin-bottom:24px">
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+    <div id="dash-view" class="dash" hidden>
+      <header class="dash-hero">
+        <div class="dash-id">
+          <div class="avatar" id="avatar" aria-hidden="true"></div>
           <div>
-            <h3>Admin dashboard</h3>
-            <p>Manage candidates, companies, applications and view all activity.</p>
+            <p class="dash-eyebrow" id="who"></p>
+            <h1 id="welcome"></h1>
+            <p class="dash-email" id="dash-email"></p>
           </div>
-          <a href="admin.html" class="btn btn-primary">Open dashboard</a>
+        </div>
+        <div class="dash-actions">
+          <span class="badge" id="status-badge"></span>
+          <button class="btn btn-outline btn-sm" id="logout">Log out</button>
+        </div>
+      </header>
+
+      <div id="approval-card" class="notice" hidden role="status">
+        <div class="notice-icon" aria-hidden="true">!</div>
+        <div>
+          <h3 id="approval-title"></h3>
+          <p id="approval-text"></p>
         </div>
       </div>
-      <div class="grid grid-2">
-        <div class="card" id="apps-card">
-          <h3 style="margin-bottom:12px">My applications</h3>
-          <div id="apps"></div>
-          <a href="vacancies.html" class="btn btn-primary btn-sm" style="margin-top:16px">Browse vacancies</a>
+
+      <div class="dash-grid">
+        <div class="dash-main">
+          <section id="admin-panel" class="card dash-card" hidden>
+            <div class="dash-card-head">
+              <div>
+                <h3>Admin dashboard</h3>
+                <p>Manage candidates, companies, applications and review all activity.</p>
+              </div>
+              <a href="admin.html" class="btn btn-primary">Open dashboard</a>
+            </div>
+          </section>
+
+          <section class="card dash-card" id="apps-card">
+            <div class="dash-card-head">
+              <div>
+                <h3>My applications</h3>
+                <p>Track the roles you have applied for.</p>
+              </div>
+              <a href="vacancies.html" class="btn btn-primary btn-sm">Browse vacancies</a>
+            </div>
+            <div id="apps"></div>
+          </section>
         </div>
-        <div class="card">
-          <h3 style="margin-bottom:12px">My details</h3>
-          <div id="details"></div>
-        </div>
+
+        <aside class="dash-side">
+          <section class="card dash-card">
+            <h3>Account details</h3>
+            <div id="details"></div>
+          </section>
+
+          <section id="pw-card" class="card dash-card" hidden>
+            <h3>Security</h3>
+            <p>Update your password. Use at least 8 characters.</p>
+            <div id="pw-msg" class="form-msg" role="alert"></div>
+            <form id="pw-form" novalidate>
+              <div class="field"><label for="pw-new">New password</label><input id="pw-new" type="password" autocomplete="new-password"></div>
+              <div class="field"><label for="pw-new2">Confirm new password</label><input id="pw-new2" type="password" autocomplete="new-password"></div>
+              <button class="btn btn-primary btn-sm" type="submit">Update password</button>
+            </form>
+          </section>
+        </aside>
       </div>
     </div>
   </main>
@@ -278,8 +301,14 @@
       const user = Auth.current();
       if (user) {
         $("dash-view").hidden = false;
-        $("welcome").textContent = "Welcome, " + user.name.split(" ")[0];
-        $("who").textContent = { admin: "Administrator account", employer: "Employer account" }[user.role] || "Candidate account";
+        const roleLabel = { admin: "Administrator", employer: "Employer" }[user.role] || "Job seeker";
+        $("welcome").textContent = user.name;
+        $("who").textContent = roleLabel + " account";
+        $("dash-email").textContent = user.email;
+        $("avatar").textContent = user.name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
+        const st = user.role === "admin" || user.approval === "approved" ? ["Approved", "ok"] : user.approval === "rejected" ? ["Not approved", "bad"] : ["Pending approval", "warn"];
+        $("status-badge").textContent = st[0];
+        $("status-badge").className = "badge " + st[1];
 
         if (user.role !== "admin" && user.approval !== "approved") {
           const rejected = user.approval === "rejected";
