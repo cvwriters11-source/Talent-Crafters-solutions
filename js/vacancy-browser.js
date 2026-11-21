@@ -21,8 +21,8 @@
   const isNew = j => Date.now() - toDate(j.posted).getTime() < 7 * 864e5;
   const ref = j => "TC-" + String(j.id).replace(/-/g, "").slice(0, 8).toUpperCase();
   const logoHTML = (j, cls) => {
-    const initial = (j.company || "?").trim().charAt(0).toUpperCase() || "?";
-    return `<span class="logo-box ${cls}">${j.logo ? `<img src="${e(j.logo)}" alt="" loading="lazy">` : `<span class="logo-initial" aria-hidden="true">${e(initial)}</span>`}</span>`;
+    // No company logo uploaded: show the Talent Crafters logo instead.
+    return `<span class="logo-box ${cls}"><img src="${j.logo ? e(j.logo) : "images/logo.jpg"}" alt="" loading="lazy"></span>`;
   };
   const heart = id => `<button type="button" class="vheart ${saved.has(id) ? "on" : ""}" data-save="${e(id)}" aria-pressed="${saved.has(id)}" aria-label="${saved.has(id) ? "Remove from saved jobs" : "Save job"}">${saved.has(id) ? "&#9829;" : "&#9825;"}</button>`;
 

@@ -11,10 +11,8 @@ async function loadVacancies() {
 // Company logo + name row. Falls back to the company's initial when there is no logo.
 function companyHTML(job) {
   const e = escapeHTML;
-  const initial = (job.company || "?").trim().charAt(0).toUpperCase() || "?";
-  const logo = job.logo
-    ? `<img src="${e(job.logo)}" alt="" loading="lazy" width="48" height="48">`
-    : `<span class="logo-initial" aria-hidden="true">${e(initial)}</span>`;
+  // No company logo uploaded: show the Talent Crafters logo instead.
+  const logo = `<img src="${job.logo ? e(job.logo) : "images/logo.jpg"}" alt="" loading="lazy" width="48" height="48">`;
   return `<div class="job-company"><span class="logo-box sm">${logo}</span><span class="job-company-name">${e(job.company)}</span></div>`;
 }
 

@@ -327,7 +327,7 @@ textarea { resize: vertical; min-height: 130px; }
 .vcard-co { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-weight: 600; color: var(--navy); }
 .vcard-co span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vcard-apply { width: 100%; padding: 9px 12px; margin-top: 2px; }
-.logo-box.xs { width: 24px; height: 24px; border-radius: 6px; flex: none; }
+.logo-box.xs { width: 48px; height: 30px; border-radius: 6px; flex: none; }
 .logo-box.xs img { padding: 2px; }
 .logo-box.xs .logo-initial { font-size: 0.8rem; }
 .logo-box.lg { width: 112px; height: 112px; border-radius: 12px; flex: none; }
