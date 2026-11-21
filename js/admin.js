@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     body.innerHTML = `
       <div class="card" style="max-width:640px">
         <h3 style="color:var(--navy);margin-bottom:6px">Welcome / review pop-up</h3>
-        <p class="hint" style="margin-bottom:16px">Appears after a few seconds for visitors who are not logged in. It keeps coming back until they click the review button. Registration is blocked until then. Logged-in (registered) people never see it.</p>
+        <p class="hint" style="margin-bottom:16px">Appears after a few seconds for guests, again if they close it, when they try to leave the page, and whenever they try to register or apply without reviewing. Stops only after they click the review button.</p>
         <div id="pop-msg" class="form-msg" role="alert"></div>
         <form id="pop-form" novalidate>
           <label class="fchip fchip-toggle" style="margin-bottom:16px"><input type="checkbox" id="pop-on" ${p.enabled ? "checked" : ""}><span>Show this pop-up on the website</span></label>

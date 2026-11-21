@@ -145,6 +145,11 @@ function bindApply(root, job, done) {
   const applyBtn = root.querySelector("#apply-btn");
   if (!applyBtn) return;
   applyBtn.addEventListener("click", async () => {
+    // Must leave a Google review before applying (same gate as registration).
+    if (typeof requireReviewPopup === "function" && requireReviewPopup()) {
+      toast("Please leave us a quick review first (use the bouncing button), then apply.");
+      return;
+    }
     applyBtn.disabled = true;
     try {
       const letter = root.querySelector("#cover-letter");
