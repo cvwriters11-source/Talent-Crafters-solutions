@@ -8,10 +8,21 @@ async function loadVacancies() {
   return window.VACANCIES;
 }
 
+// Company logo + name row. Falls back to the company's initial when there is no logo.
+function companyHTML(job) {
+  const e = escapeHTML;
+  const initial = (job.company || "?").trim().charAt(0).toUpperCase() || "?";
+  const logo = job.logo
+    ? `<img src="${e(job.logo)}" alt="" loading="lazy" width="48" height="48">`
+    : `<span class="logo-initial" aria-hidden="true">${e(initial)}</span>`;
+  return `<div class="job-company"><span class="logo-box sm">${logo}</span><span class="job-company-name">${e(job.company)}</span></div>`;
+}
+
 function jobCardHTML(job) {
   const e = escapeHTML;
   return `
     <article class="card job-card" data-id="${e(job.id)}">
+      ${companyHTML(job)}
       <div class="meta">
         <span class="tag type">${e(job.type)}</span>
         <span class="tag">${e(job.category)}</span>
@@ -54,6 +65,7 @@ async function openJobModal(id) {
   backdrop.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true" aria-label="${e(job.title)}">
       <button class="modal-close" aria-label="Close">&times;</button>
+      ${companyHTML(job)}
       <div class="meta" style="display:flex;gap:8px;margin-bottom:8px">
         <span class="tag type">${e(job.type)}</span><span class="tag">${e(job.category)}</span>
       </div>

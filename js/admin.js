@@ -269,11 +269,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="table-wrap" id="tbl"></div>`;
     const paint = () => {
       const q = body.querySelector("#q").value.trim().toLowerCase(), st = body.querySelector("#st").value;
-      const list = data.vacancies.filter(v => (!st || (st === "open") === v.active) && (!q || [v.title, v.location, v.category].join(" ").toLowerCase().includes(q)));
+      const list = data.vacancies.filter(v => (!st || (st === "open") === v.active) && (!q || [v.title, v.company, v.location, v.category].join(" ").toLowerCase().includes(q)));
       body.querySelector("#tbl").innerHTML = list.length ? `
-        <table class="data"><thead><tr><th>Title</th><th>Location</th><th>Type</th><th>Category</th><th>Posted</th><th>Applications</th><th>Status</th><th></th></tr></thead><tbody>
+        <table class="data"><thead><tr><th>Title</th><th>Company</th><th>Location</th><th>Type</th><th>Category</th><th>Posted</th><th>Applications</th><th>Status</th><th></th></tr></thead><tbody>
         ${list.map(v => `<tr>
-          <td><strong>${e(v.title)}</strong></td><td>${e(v.location)}</td><td>${e(v.type)}</td><td>${e(v.category)}</td><td>${e(v.posted)}</td>
+          <td><strong>${e(v.title)}</strong></td>
+          <td><span class="co-cell">${v.logo ? `<img class="logo-thumb" src="${e(v.logo)}" alt="" loading="lazy">` : ""}${e(v.company)}</span></td>
+          <td>${e(v.location)}</td><td>${e(v.type)}</td><td>${e(v.category)}</td><td>${e(v.posted)}</td>
           <td>${data.apps.filter(a => a.jobId === v.id).length}</td>
           <td>${v.active ? `<span class="badge ok">Open</span>` : `<span class="badge">Closed</span>`}</td>
           <td style="white-space:nowrap">
@@ -312,13 +314,60 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div class="field"><label for="v-cat">Category</label><input id="v-cat" maxlength="80" value="${e(f.category)}" placeholder="e.g. Finance" required></div>
           <div class="field"><label for="v-sal">Salary</label><input id="v-sal" maxlength="120" value="${e(f.salary)}" placeholder="e.g. Market related"></div>
         </div>
-        <div class="field"><label for="v-co">Company (shown publicly)</label><input id="v-co" maxlength="160" value="${e(f.company)}"></div>
+        <div class="field"><label for="v-co">Company (shown publicly)</label><input id="v-co" maxlength="160" value="${e(f.company)}" list="v-co-list" autocomplete="off">
+          <datalist id="v-co-list">${[...new Set(data.vacancies.map(x => x.company))].map(c => `<option value="${e(c)}">`).join("")}</datalist></div>
+        <div class="field"><label for="v-logo">Company logo</label>
+          <div class="logo-field">
+            <div class="logo-box" id="v-logo-prev" aria-hidden="true"></div>
+            <div>
+              <input type="file" id="v-logo" accept="image/png,image/jpeg,image/webp">
+              <div style="margin-top:6px"><button type="button" class="btn btn-outline-dark btn-sm" id="v-logo-rm">Remove logo</button></div>
+              <p class="hint" style="margin-top:6px">PNG, JPG or WebP, under 1 MB. Only upload logos you have permission to use.</p>
+            </div>
+          </div>
+        </div>
         <div class="field"><label for="v-sum">Summary</label><textarea id="v-sum" maxlength="1000" style="min-height:90px">${e(f.summary)}</textarea></div>
         <div class="field"><label for="v-req">Requirements (one per line)</label><textarea id="v-req" style="min-height:90px">${e(f.requirements.join("\n"))}</textarea></div>
         <div id="v-err" class="form-msg error" role="alert"></div>
         <button class="btn btn-primary" type="submit">${v ? "Save changes" : "Create vacancy"}</button>
       </form>`);
     const $ = s => m.el.querySelector(s);
+
+    // Logo handling: keep the saved URL until a new file is chosen or the logo is removed.
+    let logoUrl = f.logo || "", logoFile = null, blobUrl = null;
+    const paintLogo = () => {
+      const src = blobUrl || logoUrl;
+      $("#v-logo-prev").innerHTML = src ? `<img src="${e(src)}" alt="">` : `<span>No logo</span>`;
+      $("#v-logo-rm").hidden = !src;
+    };
+    $("#v-logo").addEventListener("change", ev => {
+      const file = ev.target.files[0], err = $("#v-err");
+      err.className = "form-msg error";
+      if (!file) return;
+      if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 1048576) {
+        ev.target.value = "";
+        err.textContent = "Please choose a PNG, JPG or WebP image under 1 MB.";
+        err.className = "form-msg error show";
+        return;
+      }
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      logoFile = file; blobUrl = URL.createObjectURL(file);
+      paintLogo();
+    });
+    $("#v-logo-rm").addEventListener("click", () => {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      logoFile = null; blobUrl = null; logoUrl = ""; $("#v-logo").value = "";
+      paintLogo();
+    });
+    // Picking a company that already has a logo on another vacancy reuses that logo.
+    $("#v-co").addEventListener("change", () => {
+      if (logoFile || logoUrl) return;
+      const name = $("#v-co").value.trim().toLowerCase();
+      const hit = data.vacancies.find(x => x.logo && x.company.toLowerCase() === name);
+      if (hit) { logoUrl = hit.logo; paintLogo(); }
+    });
+    paintLogo();
+
     $("#vform").addEventListener("submit", async ev => {
       ev.preventDefault();
       const err = $("#v-err");
@@ -331,6 +380,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const btn = ev.submitter || $("#vform button[type=submit]");
       btn.disabled = true;
       try {
+        val.logo = logoFile ? await Vacancies.uploadLogo(logoFile) : logoUrl;
         v ? await Vacancies.update(id, val) : await Vacancies.create(val);
         m.close(); await render(); toast(v ? "Vacancy saved" : "Vacancy created");
       } catch (e2) { btn.disabled = false; err.textContent = e2.message; err.className = "form-msg error show"; }

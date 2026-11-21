@@ -33,7 +33,8 @@
   });
   const mapVacancy = v => ({
     id: v.id, title: v.title, company: v.company, location: v.location, type: v.type, category: v.category,
-    salary: v.salary, summary: v.summary, requirements: v.requirements || [], posted: v.posted, active: v.active
+    salary: v.salary, summary: v.summary, requirements: v.requirements || [], posted: v.posted, active: v.active,
+    logo: v.logo_url || ""
   });
 
   let user = null;
@@ -202,8 +203,20 @@
     _fields(v) {
       return {
         title: v.title, company: v.company || "Confidential Client", location: v.location, type: v.type,
-        category: v.category, salary: v.salary || "", summary: v.summary || "", requirements: v.requirements || []
+        category: v.category, salary: v.salary || "", summary: v.summary || "", requirements: v.requirements || [],
+        logo_url: v.logo || ""
       };
+    },
+    // Admin: upload a company logo (PNG/JPG/WebP, max 1 MB) and return its public URL.
+    async uploadLogo(file) {
+      const types = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+      const ext = types[file.type];
+      if (!ext) throw new Error("Please choose a PNG, JPG or WebP image.");
+      if (file.size > 1048576) throw new Error("That logo is too large. Please use an image under 1 MB.");
+      const path = Date.now() + "-" + Math.random().toString(36).slice(2, 10) + "." + ext;
+      const { error } = await sb.storage.from("company-logos").upload(path, file, { contentType: file.type, cacheControl: "31536000" });
+      if (error) fail(error, "Could not upload the logo. Please try again.");
+      return sb.storage.from("company-logos").getPublicUrl(path).data.publicUrl;
     },
     async create(v) {
       const { error } = await sb.from("vacancies").insert(this._fields(v));
