@@ -34,7 +34,7 @@
   const mapVacancy = v => ({
     id: v.id, title: v.title, company: v.company, location: v.location, type: v.type, category: v.category,
     salary: v.salary, summary: v.summary, requirements: v.requirements || [], posted: v.posted, active: v.active,
-    logo: v.logo_url || ""
+    logo: v.logo_url || "", description: v.description || ""
   });
 
   let user = null;
@@ -204,7 +204,7 @@
       return {
         title: v.title, company: v.company || "Confidential Client", location: v.location, type: v.type,
         category: v.category, salary: v.salary || "", summary: v.summary || "", requirements: v.requirements || [],
-        logo_url: v.logo || ""
+        logo_url: v.logo || "", description: v.description || ""
       };
     },
     // Admin: upload a company logo (PNG/JPG/WebP, max 1 MB) and return its public URL.

@@ -228,6 +228,10 @@ a:hover { text-decoration: underline; }
 .job-card .salary { font-weight: 700; color: var(--navy); }
 .job-card .foot { margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 8px; }
 
+.job-desc { color: var(--muted); }
+.job-desc p { margin: 0 0 10px; }
+.job-desc ul { margin: 0 0 10px; padding-left: 20px; }
+
 /* Company logos */
 .logo-box {
   width: 96px; height: 96px; flex: none; display: grid; place-items: center; overflow: hidden;

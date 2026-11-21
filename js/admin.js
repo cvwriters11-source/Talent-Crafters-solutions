@@ -301,7 +301,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function openVacancy(id) {
     const v = id ? data.vacancies.find(x => x.id === id) : null;
-    const f = v || { title: "", company: "Confidential Client", location: "", type: "Full-time", category: "", salary: "", summary: "", requirements: [] };
+    const f = v || { title: "", company: "Confidential Client", location: "", type: "Full-time", category: "", salary: "", summary: "", description: "", requirements: [] };
     const m = openModal(`
       <h2>${v ? "Edit vacancy" : "New vacancy"}</h2>
       <form id="vform" novalidate style="margin-top:14px">
@@ -326,7 +326,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
           </div>
         </div>
-        <div class="field"><label for="v-sum">Summary</label><textarea id="v-sum" maxlength="1000" style="min-height:90px">${e(f.summary)}</textarea></div>
+        <div class="field"><label for="v-sum">Short summary (shown on the job card)</label><textarea id="v-sum" maxlength="1000" style="min-height:70px">${e(f.summary)}</textarea></div>
+        <div class="field"><label for="v-desc">Full job description (shown when a candidate opens the job)</label>
+          <textarea id="v-desc" maxlength="10000" style="min-height:200px" placeholder="About the company, key responsibilities, working hours, benefits, how to apply...&#10;&#10;Leave a blank line between paragraphs. Start a line with - to make a bullet point.">${e(f.description || "")}</textarea></div>
         <div class="field"><label for="v-req">Requirements (one per line)</label><textarea id="v-req" style="min-height:90px">${e(f.requirements.join("\n"))}</textarea></div>
         <div id="v-err" class="form-msg error" role="alert"></div>
         <button class="btn btn-primary" type="submit">${v ? "Save changes" : "Create vacancy"}</button>
@@ -374,7 +376,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const val = {
         title: $("#v-title").value.trim(), location: $("#v-loc").value.trim(), type: $("#v-type").value,
         category: $("#v-cat").value.trim(), salary: $("#v-sal").value.trim(), company: $("#v-co").value.trim(),
-        summary: $("#v-sum").value.trim(), requirements: $("#v-req").value.split("\n").map(s => s.trim()).filter(Boolean)
+        summary: $("#v-sum").value.trim(), description: $("#v-desc").value.trim(), requirements: $("#v-req").value.split("\n").map(s => s.trim()).filter(Boolean)
       };
       if (!val.title || !val.location || !val.category) { err.textContent = "Title, location and category are required."; err.className = "form-msg error show"; return; }
       const btn = ev.submitter || $("#vform button[type=submit]");

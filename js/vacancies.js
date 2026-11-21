@@ -18,6 +18,27 @@ function companyHTML(job) {
   return `<div class="job-company"><span class="logo-box sm">${logo}</span><span class="job-company-name">${e(job.company)}</span></div>`;
 }
 
+// Plain text -> safe HTML: blank line = new paragraph, lines starting with "- " / "* " / "• " = bullets.
+function descriptionHTML(text) {
+  const e = escapeHTML;
+  const bullet = /^[-*•]\s+/;
+  return String(text || "").trim().split(/\n\s*\n/).map(block => {
+    const out = [];
+    let para = [], items = [];
+    const flush = () => {
+      if (para.length) out.push(`<p>${para.map(e).join("<br>")}</p>`);
+      if (items.length) out.push(`<ul>${items.map(i => `<li>${e(i)}</li>`).join("")}</ul>`);
+      para = []; items = [];
+    };
+    block.split("\n").map(l => l.trim()).filter(Boolean).forEach(l => {
+      if (bullet.test(l)) { if (para.length) flush(); items.push(l.replace(bullet, "")); }
+      else { if (items.length) flush(); para.push(l); }
+    });
+    flush();
+    return out.join("");
+  }).join("");
+}
+
 function jobCardHTML(job) {
   const e = escapeHTML;
   return `
@@ -54,9 +75,14 @@ async function openJobModal(id) {
     try { applied = (await Auth.applications(user.id)).some(a => a.jobId === id); } catch { /* shown as not applied */ }
   }
 
+  // The Apply button is always shown, but only logged-in job seekers can submit (also enforced by the database).
   let action;
-  if (!user) action = `<a class="btn btn-primary" href="account.html?next=vacancies.html">Login / Register to apply</a>`;
-  else if (user.role !== "candidate") action = `<p class="hint">Only job-seeker accounts can apply for vacancies.</p>`;
+  if (!user) action = `
+    <a class="btn btn-primary" href="account.html?next=vacancies.html">Apply now</a>
+    <p class="hint" style="margin-top:10px">Job seekers need an account to apply. <a href="account.html?next=vacancies.html">Log in</a> or <a href="account.html?next=vacancies.html#register">register free</a>.</p>`;
+  else if (user.role !== "candidate") action = `
+    <button class="btn btn-primary" disabled>Apply now</button>
+    <p class="hint" style="margin-top:10px">Only job-seeker accounts can apply for vacancies.</p>`;
   else if (applied) action = `<button class="btn btn-primary" disabled>Already applied</button>`;
   else action = `<button class="btn btn-primary" id="apply-btn">Apply now</button>`;
 
@@ -72,9 +98,8 @@ async function openJobModal(id) {
       <h2>${e(job.title)}</h2>
       <p style="color:var(--muted)">&#128205; ${e(job.location)} &middot; ${e(job.salary)} &middot; Posted ${e(job.posted)}</p>
       <h4>About the role</h4>
-      <p style="color:var(--muted)">${e(job.summary)}</p>
-      <h4>Requirements</h4>
-      <ul>${job.requirements.map(r => `<li>${e(r)}</li>`).join("")}</ul>
+      <div class="job-desc">${descriptionHTML(job.description || job.summary)}</div>
+      ${job.requirements.length ? `<h4>Requirements</h4><ul>${job.requirements.map(r => `<li>${e(r)}</li>`).join("")}</ul>` : ""}
       <div style="margin-top:24px">${action}</div>
     </div>`;
   document.body.appendChild(backdrop);
